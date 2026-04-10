@@ -1,15 +1,22 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Smart File Manager API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: files
+    description: File record operations
+  - name: rules
+    description: Naming convention and organization rules
+  - name: cloud-accounts
+    description: Cloud storage accounts
+  - name: stats
+    description: Dashboard statistics
 paths:
   /healthz:
     get:
@@ -24,6 +31,342 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /files:
+    get:
+      operationId: listFiles
+      tags: [files]
+      summary: List all tracked files
+      parameters:
+        - in: query
+          name: category
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+        - in: query
+          name: cloudAccountId
+          schema:
+            type: ["integer", "null"]
+        - in: query
+          name: search
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of files
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FileRecord"
+    post:
+      operationId: createFile
+      tags: [files]
+      summary: Add a file record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFileBody"
+      responses:
+        "201":
+          description: Created file record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileRecord"
+
+  /files/{id}:
+    get:
+      operationId: getFile
+      tags: [files]
+      summary: Get a single file record
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: File record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileRecord"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateFile
+      tags: [files]
+      summary: Update a file record
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFileBody"
+      responses:
+        "200":
+          description: Updated file record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileRecord"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteFile
+      tags: [files]
+      summary: Delete a file record
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /files/suggest-name:
+    post:
+      operationId: suggestFileName
+      tags: [files]
+      summary: Suggest a standardized name and path for a file
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SuggestNameBody"
+      responses:
+        "200":
+          description: Suggested name and folder path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NameSuggestion"
+
+  /files/scan:
+    post:
+      operationId: scanFiles
+      tags: [files]
+      summary: Scan a list of filenames and return organization suggestions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScanFilesBody"
+      responses:
+        "200":
+          description: Scan results with organization suggestions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScanResult"
+
+  /rules:
+    get:
+      operationId: listRules
+      tags: [rules]
+      summary: List all naming convention rules
+      responses:
+        "200":
+          description: List of rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NamingRule"
+    post:
+      operationId: createRule
+      tags: [rules]
+      summary: Create a new naming rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRuleBody"
+      responses:
+        "201":
+          description: Created rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NamingRule"
+
+  /rules/{id}:
+    patch:
+      operationId: updateRule
+      tags: [rules]
+      summary: Update a naming rule
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRuleBody"
+      responses:
+        "200":
+          description: Updated rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NamingRule"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteRule
+      tags: [rules]
+      summary: Delete a naming rule
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /cloud-accounts:
+    get:
+      operationId: listCloudAccounts
+      tags: [cloud-accounts]
+      summary: List configured cloud storage accounts
+      responses:
+        "200":
+          description: List of accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CloudAccount"
+    post:
+      operationId: createCloudAccount
+      tags: [cloud-accounts]
+      summary: Add a cloud storage account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCloudAccountBody"
+      responses:
+        "201":
+          description: Created account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudAccount"
+
+  /cloud-accounts/{id}:
+    patch:
+      operationId: updateCloudAccount
+      tags: [cloud-accounts]
+      summary: Update a cloud account
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCloudAccountBody"
+      responses:
+        "200":
+          description: Updated account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudAccount"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteCloudAccount
+      tags: [cloud-accounts]
+      summary: Delete a cloud account
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /stats/dashboard:
+    get:
+      operationId: getDashboardStats
+      tags: [stats]
+      summary: Get dashboard summary statistics
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /stats/category-breakdown:
+    get:
+      operationId: getCategoryBreakdown
+      tags: [stats]
+      summary: File counts grouped by category
+      responses:
+        "200":
+          description: Category breakdown
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CategoryCount"
+
+  /stats/recent-activity:
+    get:
+      operationId: getRecentActivity
+      tags: [stats]
+      summary: Recently added or updated file records
+      responses:
+        "200":
+          description: Recent file activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FileRecord"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +377,331 @@ components:
       required:
         - status
 
+    FileRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        originalName:
+          type: string
+        suggestedName:
+          type: string
+        currentName:
+          type: string
+        category:
+          type: string
+        subCategory:
+          type: ["string", "null"]
+        suggestedPath:
+          type: string
+        currentPath:
+          type: ["string", "null"]
+        cloudAccountId:
+          type: ["integer", "null"]
+        status:
+          type: string
+          description: "pending | renamed | organized | duplicate | ignored"
+        fileSize:
+          type: ["integer", "null"]
+        fileExtension:
+          type: string
+        notes:
+          type: ["string", "null"]
+        isDuplicate:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - originalName
+        - suggestedName
+        - currentName
+        - category
+        - subCategory
+        - suggestedPath
+        - currentPath
+        - cloudAccountId
+        - status
+        - fileSize
+        - fileExtension
+        - notes
+        - isDuplicate
+        - createdAt
+        - updatedAt
+
+    CreateFileBody:
+      type: object
+      properties:
+        originalName:
+          type: string
+        category:
+          type: string
+        subCategory:
+          type: ["string", "null"]
+        cloudAccountId:
+          type: ["integer", "null"]
+        fileSize:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+      required:
+        - originalName
+        - category
+
+    UpdateFileBody:
+      type: object
+      properties:
+        currentName:
+          type: string
+        currentPath:
+          type: string
+        status:
+          type: string
+        notes:
+          type: ["string", "null"]
+        isDuplicate:
+          type: boolean
+
+    SuggestNameBody:
+      type: object
+      properties:
+        originalName:
+          type: string
+        category:
+          type: string
+        subCategory:
+          type: ["string", "null"]
+        context:
+          type: ["string", "null"]
+      required:
+        - originalName
+        - category
+
+    NameSuggestion:
+      type: object
+      properties:
+        suggestedName:
+          type: string
+        suggestedPath:
+          type: string
+        category:
+          type: string
+        subCategory:
+          type: ["string", "null"]
+        explanation:
+          type: string
+      required:
+        - suggestedName
+        - suggestedPath
+        - category
+        - explanation
+
+    ScanFilesBody:
+      type: object
+      properties:
+        filenames:
+          type: array
+          items:
+            type: string
+        cloudAccountId:
+          type: ["integer", "null"]
+      required:
+        - filenames
+
+    ScanResult:
+      type: object
+      properties:
+        originalName:
+          type: string
+        suggestedName:
+          type: string
+        suggestedPath:
+          type: string
+        category:
+          type: string
+        subCategory:
+          type: ["string", "null"]
+        isDuplicateRisk:
+          type: boolean
+        explanation:
+          type: string
+      required:
+        - originalName
+        - suggestedName
+        - suggestedPath
+        - category
+        - isDuplicateRisk
+        - explanation
+
+    NamingRule:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        category:
+          type: string
+        pattern:
+          type: string
+          description: "Template pattern e.g. {YYYY-MM-DD}_{description}_{version}"
+        folderPath:
+          type: string
+          description: "Target folder structure e.g. Documents/Work/Reports"
+        extensions:
+          type: string
+          description: "Comma-separated list of applicable extensions"
+        isActive:
+          type: boolean
+        priority:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - category
+        - pattern
+        - folderPath
+        - extensions
+        - isActive
+        - priority
+        - createdAt
+
+    CreateRuleBody:
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+        pattern:
+          type: string
+        folderPath:
+          type: string
+        extensions:
+          type: string
+        priority:
+          type: integer
+      required:
+        - name
+        - category
+        - pattern
+        - folderPath
+        - extensions
+
+    UpdateRuleBody:
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+        pattern:
+          type: string
+        folderPath:
+          type: string
+        extensions:
+          type: string
+        isActive:
+          type: boolean
+        priority:
+          type: integer
+
+    CloudAccount:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        provider:
+          type: string
+          description: "google_drive | dropbox | onedrive | icloud | box | local"
+        accountLabel:
+          type: string
+        rootPath:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        fileCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - provider
+        - accountLabel
+        - rootPath
+        - isActive
+        - fileCount
+        - createdAt
+
+    CreateCloudAccountBody:
+      type: object
+      properties:
+        name:
+          type: string
+        provider:
+          type: string
+        accountLabel:
+          type: string
+        rootPath:
+          type: ["string", "null"]
+      required:
+        - name
+        - provider
+        - accountLabel
+
+    UpdateCloudAccountBody:
+      type: object
+      properties:
+        name:
+          type: string
+        accountLabel:
+          type: string
+        rootPath:
+          type: string
+        isActive:
+          type: boolean
+
+    DashboardStats:
+      type: object
+      properties:
+        totalFiles:
+          type: integer
+        pendingFiles:
+          type: integer
+        organizedFiles:
+          type: integer
+        duplicatesFound:
+          type: integer
+        cloudAccounts:
+          type: integer
+        activeRules:
+          type: integer
+      required:
+        - totalFiles
+        - pendingFiles
+        - organizedFiles
+        - duplicatesFound
+        - cloudAccounts
+        - activeRules
+
+    CategoryCount:
+      type: object
+      properties:
+        category:
+          type: string
+        count:
+          type: integer
+      required:
+        - category
+        - count
