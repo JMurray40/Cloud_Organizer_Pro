@@ -17,17 +17,24 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  BulkRenameBody,
+  BulkRenameResult,
   CategoryCount,
   CloudAccount,
   CreateCloudAccountBody,
   CreateFileBody,
   CreateRuleBody,
   DashboardStats,
+  DuplicateGroup,
   FileRecord,
+  GetPlacementRecommendationParams,
   HealthStatus,
   ListFilesParams,
   NameSuggestion,
   NamingRule,
+  OAuthCallbackBody,
+  OAuthConnectResponse,
+  PlacementRecommendation,
   ScanFilesBody,
   ScanResult,
   SuggestNameBody,
@@ -722,6 +729,167 @@ export const useScanFiles = <
 };
 
 /**
+ * @summary Get groups of duplicate files
+ */
+export const getGetDuplicatesUrl = () => {
+  return `/api/files/duplicates`;
+};
+
+export const getDuplicates = async (
+  options?: RequestInit,
+): Promise<DuplicateGroup[]> => {
+  return customFetch<DuplicateGroup[]>(getGetDuplicatesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetDuplicatesQueryKey = () => {
+  return [`/api/files/duplicates`] as const;
+};
+
+export const getGetDuplicatesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getDuplicates>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getDuplicates>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetDuplicatesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getDuplicates>>> = ({
+    signal,
+  }) => getDuplicates({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getDuplicates>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetDuplicatesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getDuplicates>>
+>;
+export type GetDuplicatesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get groups of duplicate files
+ */
+
+export function useGetDuplicates<
+  TData = Awaited<ReturnType<typeof getDuplicates>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getDuplicates>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetDuplicatesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Apply suggested names to multiple files at once
+ */
+export const getBulkRenameFilesUrl = () => {
+  return `/api/files/bulk-rename`;
+};
+
+export const bulkRenameFiles = async (
+  bulkRenameBody: BulkRenameBody,
+  options?: RequestInit,
+): Promise<BulkRenameResult> => {
+  return customFetch<BulkRenameResult>(getBulkRenameFilesUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(bulkRenameBody),
+  });
+};
+
+export const getBulkRenameFilesMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bulkRenameFiles>>,
+    TError,
+    { data: BodyType<BulkRenameBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof bulkRenameFiles>>,
+  TError,
+  { data: BodyType<BulkRenameBody> },
+  TContext
+> => {
+  const mutationKey = ["bulkRenameFiles"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof bulkRenameFiles>>,
+    { data: BodyType<BulkRenameBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return bulkRenameFiles(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BulkRenameFilesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof bulkRenameFiles>>
+>;
+export type BulkRenameFilesMutationBody = BodyType<BulkRenameBody>;
+export type BulkRenameFilesMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Apply suggested names to multiple files at once
+ */
+export const useBulkRenameFiles = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bulkRenameFiles>>,
+    TError,
+    { data: BodyType<BulkRenameBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof bulkRenameFiles>>,
+  TError,
+  { data: BodyType<BulkRenameBody> },
+  TContext
+> => {
+  return useMutation(getBulkRenameFilesMutationOptions(options));
+};
+
+/**
  * @summary List all naming convention rules
  */
 export const getListRulesUrl = () => {
@@ -1207,6 +1375,115 @@ export const useCreateCloudAccount = <
 };
 
 /**
+ * @summary Recommend the best cloud account for saving a new file based on available space
+ */
+export const getGetPlacementRecommendationUrl = (
+  params?: GetPlacementRecommendationParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/cloud-accounts/recommend-placement?${stringifiedParams}`
+    : `/api/cloud-accounts/recommend-placement`;
+};
+
+export const getPlacementRecommendation = async (
+  params?: GetPlacementRecommendationParams,
+  options?: RequestInit,
+): Promise<PlacementRecommendation> => {
+  return customFetch<PlacementRecommendation>(
+    getGetPlacementRecommendationUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetPlacementRecommendationQueryKey = (
+  params?: GetPlacementRecommendationParams,
+) => {
+  return [
+    `/api/cloud-accounts/recommend-placement`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetPlacementRecommendationQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPlacementRecommendation>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetPlacementRecommendationParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPlacementRecommendation>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPlacementRecommendationQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPlacementRecommendation>>
+  > = ({ signal }) =>
+    getPlacementRecommendation(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPlacementRecommendation>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPlacementRecommendationQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPlacementRecommendation>>
+>;
+export type GetPlacementRecommendationQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Recommend the best cloud account for saving a new file based on available space
+ */
+
+export function useGetPlacementRecommendation<
+  TData = Awaited<ReturnType<typeof getPlacementRecommendation>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetPlacementRecommendationParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPlacementRecommendation>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPlacementRecommendationQueryOptions(
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * @summary Update a cloud account
  */
 export const getUpdateCloudAccountUrl = (id: number) => {
@@ -1375,6 +1652,182 @@ export const useDeleteCloudAccount = <
   TContext
 > => {
   return useMutation(getDeleteCloudAccountMutationOptions(options));
+};
+
+/**
+ * @summary Get the OAuth authorization URL for a provider
+ */
+export const getGetOAuthConnectUrlUrl = (provider: string) => {
+  return `/api/oauth/connect/${provider}`;
+};
+
+export const getOAuthConnectUrl = async (
+  provider: string,
+  options?: RequestInit,
+): Promise<OAuthConnectResponse> => {
+  return customFetch<OAuthConnectResponse>(getGetOAuthConnectUrlUrl(provider), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetOAuthConnectUrlQueryKey = (provider: string) => {
+  return [`/api/oauth/connect/${provider}`] as const;
+};
+
+export const getGetOAuthConnectUrlQueryOptions = <
+  TData = Awaited<ReturnType<typeof getOAuthConnectUrl>>,
+  TError = ErrorType<unknown>,
+>(
+  provider: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getOAuthConnectUrl>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetOAuthConnectUrlQueryKey(provider);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getOAuthConnectUrl>>
+  > = ({ signal }) =>
+    getOAuthConnectUrl(provider, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!provider,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getOAuthConnectUrl>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetOAuthConnectUrlQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getOAuthConnectUrl>>
+>;
+export type GetOAuthConnectUrlQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get the OAuth authorization URL for a provider
+ */
+
+export function useGetOAuthConnectUrl<
+  TData = Awaited<ReturnType<typeof getOAuthConnectUrl>>,
+  TError = ErrorType<unknown>,
+>(
+  provider: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getOAuthConnectUrl>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetOAuthConnectUrlQueryOptions(provider, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Complete OAuth flow and register cloud account
+ */
+export const getCompleteOAuthConnectUrl = (provider: string) => {
+  return `/api/oauth/callback/${provider}`;
+};
+
+export const completeOAuthConnect = async (
+  provider: string,
+  oAuthCallbackBody: OAuthCallbackBody,
+  options?: RequestInit,
+): Promise<CloudAccount> => {
+  return customFetch<CloudAccount>(getCompleteOAuthConnectUrl(provider), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(oAuthCallbackBody),
+  });
+};
+
+export const getCompleteOAuthConnectMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof completeOAuthConnect>>,
+    TError,
+    { provider: string; data: BodyType<OAuthCallbackBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof completeOAuthConnect>>,
+  TError,
+  { provider: string; data: BodyType<OAuthCallbackBody> },
+  TContext
+> => {
+  const mutationKey = ["completeOAuthConnect"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof completeOAuthConnect>>,
+    { provider: string; data: BodyType<OAuthCallbackBody> }
+  > = (props) => {
+    const { provider, data } = props ?? {};
+
+    return completeOAuthConnect(provider, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CompleteOAuthConnectMutationResult = NonNullable<
+  Awaited<ReturnType<typeof completeOAuthConnect>>
+>;
+export type CompleteOAuthConnectMutationBody = BodyType<OAuthCallbackBody>;
+export type CompleteOAuthConnectMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Complete OAuth flow and register cloud account
+ */
+export const useCompleteOAuthConnect = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof completeOAuthConnect>>,
+    TError,
+    { provider: string; data: BodyType<OAuthCallbackBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof completeOAuthConnect>>,
+  TError,
+  { provider: string; data: BodyType<OAuthCallbackBody> },
+  TContext
+> => {
+  return useMutation(getCompleteOAuthConnectMutationOptions(options));
 };
 
 /**

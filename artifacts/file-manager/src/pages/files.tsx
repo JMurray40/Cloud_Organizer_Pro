@@ -1,10 +1,14 @@
 import { useState } from "react";
-import { useListFiles, useUpdateFile, useDeleteFile, getListFilesQueryKey } from "@workspace/api-client-react";
+import { useListFiles, useUpdateFile, useDeleteFile, getListFilesQueryKey, getDashboardStatsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Trash2, CheckCircle2, MinusCircle, Copy } from "lucide-react";
+import { Search, Trash2, CheckCircle2, MinusCircle, Copy, Play, Download, Square, SquareCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
@@ -21,40 +25,38 @@ export default function FilesPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
   const [status, setStatus] = useState("");
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const params = {
     ...(search ? { search } : {}),
-    ...(category ? { category } : {}),
-    ...(status ? { status } : {}),
+    ...(category && category !== "_all" ? { category } : {}),
+    ...(status && status !== "_all" ? { status } : {}),
   };
 
   const { data: files, isLoading } = useListFiles(Object.keys(params).length ? params : undefined);
   const updateFile = useUpdateFile();
   const deleteFile = useDeleteFile();
 
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: getListFilesQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getDashboardStatsQueryKey() });
+  };
+
   const handleStatusChange = (id: number, newStatus: string) => {
     updateFile.mutate(
       { id, data: { status: newStatus } },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListFilesQueryKey() });
-          toast({ title: "Status updated" });
-        },
-      }
+      { onSuccess: () => { invalidate(); toast({ title: "Status updated" }); } }
     );
   };
 
   const handleDelete = (id: number) => {
     deleteFile.mutate(
       { id },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListFilesQueryKey() });
-          toast({ title: "File removed" });
-        },
-      }
+      { onSuccess: () => { invalidate(); setSelected((s) => { const n = new Set(s); n.delete(id); return n; }); toast({ title: "File removed" }); } }
     );
   };
 
@@ -63,11 +65,99 @@ export default function FilesPage() {
     toast({ title: "Copied to clipboard" });
   };
 
+  const toggleSelect = (id: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (!files) return;
+    const pending = files.filter((f) => f.status !== "organized").map((f) => f.id);
+    if (selected.size === pending.length && pending.every((id) => selected.has(id))) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(pending));
+    }
+  };
+
+  const handleBulkRename = async (action: "apply" | "download-script") => {
+    if (selected.size === 0) return;
+    setBulkLoading(true);
+    try {
+      const res = await fetch(`${BASE}/api/files/bulk-rename`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileIds: [...selected], action }),
+      });
+      const data = await res.json();
+
+      if (action === "apply") {
+        invalidate();
+        setSelected(new Set());
+        toast({ title: `Applied ${data.updated} rename${data.updated !== 1 ? "s" : ""}`, description: data.skipped > 0 ? `${data.skipped} file(s) skipped (already organized)` : undefined });
+      } else if (action === "download-script" && data.script) {
+        const blob = new Blob([data.script], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `fileorbit-rename-${Date.now()}.sh`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast({ title: "Rename script downloaded", description: `${data.updated} rename command(s) included` });
+      }
+    } catch {
+      toast({ title: "Bulk rename failed", variant: "destructive" });
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const pendingFiles = files?.filter((f) => f.status !== "organized") ?? [];
+  const allPendingSelected = pendingFiles.length > 0 && pendingFiles.every((f) => selected.has(f.id));
+
   return (
     <div className="p-6 space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground" data-testid="page-title-files">Files</h1>
-        <p className="text-sm text-muted-foreground mt-1">All tracked file records with suggested names and paths</p>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground" data-testid="page-title-files">Files</h1>
+          <p className="text-sm text-muted-foreground mt-1">All tracked file records with suggested names and paths</p>
+        </div>
+
+        {selected.size > 0 && (
+          <div className="flex items-center gap-2 bg-primary/5 border border-primary/20 rounded-lg px-3 py-2">
+            <span className="text-sm font-medium text-primary">{selected.size} selected</span>
+            <Button
+              size="sm"
+              variant="default"
+              className="gap-1.5 h-7 text-xs"
+              disabled={bulkLoading}
+              onClick={() => handleBulkRename("apply")}
+            >
+              <Play className="w-3.5 h-3.5" />
+              Apply Renames
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 h-7 text-xs"
+              disabled={bulkLoading}
+              onClick={() => handleBulkRename("download-script")}
+            >
+              <Download className="w-3.5 h-3.5" />
+              Download Script
+            </Button>
+            <button
+              className="text-xs text-muted-foreground hover:text-foreground ml-1"
+              onClick={() => setSelected(new Set())}
+            >
+              Clear
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex gap-3 flex-wrap">
@@ -104,7 +194,14 @@ export default function FilesPage() {
       </div>
 
       <div className="bg-card border border-card-border rounded-lg overflow-hidden">
-        <div className="grid grid-cols-[1fr_1fr_100px_120px_80px_100px] text-xs font-semibold text-muted-foreground bg-muted/40 px-4 py-2.5 border-b border-border">
+        <div className="grid grid-cols-[32px_1fr_1fr_100px_120px_80px_100px] text-xs font-semibold text-muted-foreground bg-muted/40 px-4 py-2.5 border-b border-border">
+          <button
+            onClick={toggleSelectAll}
+            title={allPendingSelected ? "Deselect all" : "Select all pending"}
+            className="flex items-center text-muted-foreground hover:text-foreground"
+          >
+            {allPendingSelected ? <SquareCheck className="w-4 h-4 text-primary" /> : <Square className="w-4 h-4" />}
+          </button>
           <span>Original Name</span>
           <span>Suggested Name</span>
           <span>Category</span>
@@ -115,81 +212,94 @@ export default function FilesPage() {
         {isLoading ? (
           <div className="py-12 text-center text-muted-foreground text-sm">Loading files...</div>
         ) : files && files.length > 0 ? (
-          files.map((file) => (
-            <div
-              key={file.id}
-              data-testid={`row-file-${file.id}`}
-              className="grid grid-cols-[1fr_1fr_100px_120px_80px_100px] items-center px-4 py-3 border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
-            >
-              <div className="min-w-0">
-                <div className="text-sm text-foreground truncate font-medium">{file.originalName}</div>
-                {file.isDuplicate && (
-                  <span className="text-xs text-red-500 flex items-center gap-1">
-                    <Copy className="w-3 h-3" /> Duplicate risk
+          files.map((file) => {
+            const isSelected = selected.has(file.id);
+            return (
+              <div
+                key={file.id}
+                data-testid={`row-file-${file.id}`}
+                className={cn(
+                  "grid grid-cols-[32px_1fr_1fr_100px_120px_80px_100px] items-center px-4 py-3 border-b border-border last:border-0 hover:bg-muted/30 transition-colors",
+                  isSelected && "bg-primary/5"
+                )}
+              >
+                <button
+                  onClick={() => toggleSelect(file.id)}
+                  disabled={file.status === "organized"}
+                  className="flex items-center text-muted-foreground hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  {isSelected ? <SquareCheck className="w-4 h-4 text-primary" /> : <Square className="w-4 h-4" />}
+                </button>
+                <div className="min-w-0">
+                  <div className="text-sm text-foreground truncate font-medium">{file.originalName}</div>
+                  {file.isDuplicate && (
+                    <span className="text-xs text-red-500 flex items-center gap-1">
+                      <Copy className="w-3 h-3" /> Duplicate risk
+                    </span>
+                  )}
+                </div>
+                <div className="min-w-0 pr-2">
+                  <button
+                    onClick={() => copyToClipboard(file.suggestedName)}
+                    data-testid={`button-copy-name-${file.id}`}
+                    className="text-xs text-primary font-mono truncate block hover:underline text-left w-full"
+                    title="Click to copy"
+                  >
+                    {file.suggestedName}
+                  </button>
+                </div>
+                <div>
+                  <span className="text-xs text-foreground">{file.category}</span>
+                  {file.subCategory && <div className="text-xs text-muted-foreground">{file.subCategory}</div>}
+                </div>
+                <div>
+                  <button
+                    onClick={() => copyToClipboard(file.suggestedPath)}
+                    data-testid={`button-copy-path-${file.id}`}
+                    className="text-xs text-muted-foreground font-mono truncate hover:text-primary block w-full text-left"
+                    title="Click to copy"
+                  >
+                    {file.suggestedPath}
+                  </button>
+                </div>
+                <div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[file.status] ?? STATUS_COLORS.ignored}`}>
+                    {file.status}
                   </span>
-                )}
-              </div>
-              <div className="min-w-0 pr-2">
-                <button
-                  onClick={() => copyToClipboard(file.suggestedName)}
-                  data-testid={`button-copy-name-${file.id}`}
-                  className="text-xs text-primary font-mono truncate block hover:underline text-left w-full"
-                  title="Click to copy"
-                >
-                  {file.suggestedName}
-                </button>
-              </div>
-              <div>
-                <span className="text-xs text-foreground">{file.category}</span>
-                {file.subCategory && <div className="text-xs text-muted-foreground">{file.subCategory}</div>}
-              </div>
-              <div>
-                <button
-                  onClick={() => copyToClipboard(file.suggestedPath)}
-                  data-testid={`button-copy-path-${file.id}`}
-                  className="text-xs text-muted-foreground font-mono truncate hover:text-primary block w-full text-left"
-                  title="Click to copy"
-                >
-                  {file.suggestedPath}
-                </button>
-              </div>
-              <div>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[file.status] ?? STATUS_COLORS.ignored}`}>
-                  {file.status}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                {file.status !== "organized" && (
+                </div>
+                <div className="flex items-center gap-1">
+                  {file.status !== "organized" && (
+                    <button
+                      data-testid={`button-organize-${file.id}`}
+                      onClick={() => handleStatusChange(file.id, "organized")}
+                      className="p-1.5 rounded hover:bg-green-100 dark:hover:bg-green-900/20 text-muted-foreground hover:text-green-600 transition-colors"
+                      title="Mark as organized"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                    </button>
+                  )}
+                  {file.status !== "ignored" && (
+                    <button
+                      data-testid={`button-ignore-${file.id}`}
+                      onClick={() => handleStatusChange(file.id, "ignored")}
+                      className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                      title="Mark as ignored"
+                    >
+                      <MinusCircle className="w-4 h-4" />
+                    </button>
+                  )}
                   <button
-                    data-testid={`button-organize-${file.id}`}
-                    onClick={() => handleStatusChange(file.id, "organized")}
-                    className="p-1.5 rounded hover:bg-green-100 dark:hover:bg-green-900/20 text-muted-foreground hover:text-green-600 transition-colors"
-                    title="Mark as organized"
+                    data-testid={`button-delete-${file.id}`}
+                    onClick={() => handleDelete(file.id)}
+                    className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-muted-foreground hover:text-red-500 transition-colors"
+                    title="Remove record"
                   >
-                    <CheckCircle2 className="w-4 h-4" />
+                    <Trash2 className="w-4 h-4" />
                   </button>
-                )}
-                {file.status !== "ignored" && (
-                  <button
-                    data-testid={`button-ignore-${file.id}`}
-                    onClick={() => handleStatusChange(file.id, "ignored")}
-                    className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                    title="Mark as ignored"
-                  >
-                    <MinusCircle className="w-4 h-4" />
-                  </button>
-                )}
-                <button
-                  data-testid={`button-delete-${file.id}`}
-                  onClick={() => handleDelete(file.id)}
-                  className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-muted-foreground hover:text-red-500 transition-colors"
-                  title="Remove record"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         ) : (
           <div className="py-12 text-center text-muted-foreground text-sm">
             No files found. Use Scan or Drop Zone to add files.

@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, boolean, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, boolean, integer, doublePrecision } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -10,6 +10,9 @@ export const cloudAccountsTable = pgTable("cloud_accounts", {
   rootPath: text("root_path"),
   isActive: boolean("is_active").notNull().default(true),
   fileCount: integer("file_count").notNull().default(0),
+  quotaTotalGb: doublePrecision("quota_total_gb"),
+  quotaUsedGb: doublePrecision("quota_used_gb"),
+  connectedViaOAuth: boolean("connected_via_oauth").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

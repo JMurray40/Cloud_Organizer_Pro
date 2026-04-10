@@ -168,6 +168,54 @@ export const ScanFilesResponseItem = zod.object({
 export const ScanFilesResponse = zod.array(ScanFilesResponseItem);
 
 /**
+ * @summary Get groups of duplicate files
+ */
+export const GetDuplicatesResponseItem = zod.object({
+  groupKey: zod.string(),
+  files: zod.array(
+    zod.object({
+      id: zod.number(),
+      originalName: zod.string(),
+      suggestedName: zod.string(),
+      currentName: zod.string(),
+      category: zod.string(),
+      subCategory: zod.string().nullable(),
+      suggestedPath: zod.string(),
+      currentPath: zod.string().nullable(),
+      cloudAccountId: zod.number().nullable(),
+      status: zod
+        .string()
+        .describe("pending | renamed | organized | duplicate | ignored"),
+      fileSize: zod.number().nullable(),
+      fileExtension: zod.string(),
+      notes: zod.string().nullable(),
+      isDuplicate: zod.boolean(),
+      createdAt: zod.coerce.date(),
+      updatedAt: zod.coerce.date(),
+    }),
+  ),
+  reason: zod.string(),
+});
+export const GetDuplicatesResponse = zod.array(GetDuplicatesResponseItem);
+
+/**
+ * @summary Apply suggested names to multiple files at once
+ */
+export const BulkRenameFilesBody = zod.object({
+  fileIds: zod.array(zod.number()),
+  action: zod.string().describe("apply | download-script"),
+});
+
+export const BulkRenameFilesResponse = zod.object({
+  updated: zod.number(),
+  skipped: zod.number(),
+  script: zod
+    .string()
+    .nullish()
+    .describe("Shell rename script (if action=download-script)"),
+});
+
+/**
  * @summary List all naming convention rules
  */
 export const ListRulesResponseItem = zod.object({
@@ -256,6 +304,9 @@ export const ListCloudAccountsResponseItem = zod.object({
   rootPath: zod.string().nullable(),
   isActive: zod.boolean(),
   fileCount: zod.number(),
+  quotaTotalGb: zod.number().nullable(),
+  quotaUsedGb: zod.number().nullable(),
+  connectedViaOAuth: zod.boolean(),
   createdAt: zod.coerce.date(),
 });
 export const ListCloudAccountsResponse = zod.array(
@@ -270,6 +321,33 @@ export const CreateCloudAccountBody = zod.object({
   provider: zod.string(),
   accountLabel: zod.string(),
   rootPath: zod.string().nullish(),
+  quotaTotalGb: zod.number().nullish(),
+  quotaUsedGb: zod.number().nullish(),
+  connectedViaOAuth: zod.boolean().optional(),
+});
+
+/**
+ * @summary Recommend the best cloud account for saving a new file based on available space
+ */
+export const GetPlacementRecommendationQueryParams = zod.object({
+  fileSizeGb: zod.coerce.number().optional(),
+});
+
+export const GetPlacementRecommendationResponse = zod.object({
+  recommendedAccountId: zod.number().nullish(),
+  recommendedAccountName: zod.string().optional(),
+  reason: zod.string(),
+  accounts: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      provider: zod.string(),
+      quotaTotalGb: zod.number().nullish(),
+      quotaUsedGb: zod.number().nullish(),
+      freeGb: zod.number().nullish(),
+      percentUsed: zod.number().nullish(),
+    }),
+  ),
 });
 
 /**
@@ -284,6 +362,8 @@ export const UpdateCloudAccountBody = zod.object({
   accountLabel: zod.string().optional(),
   rootPath: zod.string().optional(),
   isActive: zod.boolean().optional(),
+  quotaTotalGb: zod.number().optional(),
+  quotaUsedGb: zod.number().optional(),
 });
 
 export const UpdateCloudAccountResponse = zod.object({
@@ -296,6 +376,9 @@ export const UpdateCloudAccountResponse = zod.object({
   rootPath: zod.string().nullable(),
   isActive: zod.boolean(),
   fileCount: zod.number(),
+  quotaTotalGb: zod.number().nullable(),
+  quotaUsedGb: zod.number().nullable(),
+  connectedViaOAuth: zod.boolean(),
   createdAt: zod.coerce.date(),
 });
 
@@ -304,6 +387,35 @@ export const UpdateCloudAccountResponse = zod.object({
  */
 export const DeleteCloudAccountParams = zod.object({
   id: zod.coerce.number(),
+});
+
+/**
+ * @summary Get the OAuth authorization URL for a provider
+ */
+export const GetOAuthConnectUrlParams = zod.object({
+  provider: zod.coerce.string(),
+});
+
+export const GetOAuthConnectUrlResponse = zod.object({
+  provider: zod.string(),
+  authUrl: zod.string(),
+  state: zod.string(),
+  instructions: zod.string(),
+});
+
+/**
+ * @summary Complete OAuth flow and register cloud account
+ */
+export const CompleteOAuthConnectParams = zod.object({
+  provider: zod.coerce.string(),
+});
+
+export const CompleteOAuthConnectBody = zod.object({
+  state: zod.string(),
+  accountLabel: zod.string(),
+  accountName: zod.string(),
+  simulatedQuotaTotalGb: zod.number().optional(),
+  simulatedQuotaUsedGb: zod.number().optional(),
 });
 
 /**

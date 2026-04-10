@@ -6,17 +6,25 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./accountStorageSummary";
+export * from "./bulkRenameBody";
+export * from "./bulkRenameResult";
 export * from "./categoryCount";
 export * from "./cloudAccount";
 export * from "./createCloudAccountBody";
 export * from "./createFileBody";
 export * from "./createRuleBody";
 export * from "./dashboardStats";
+export * from "./duplicateGroup";
 export * from "./fileRecord";
+export * from "./getPlacementRecommendationParams";
 export * from "./healthStatus";
 export * from "./listFilesParams";
 export * from "./nameSuggestion";
 export * from "./namingRule";
+export * from "./oAuthCallbackBody";
+export * from "./oAuthConnectResponse";
+export * from "./placementRecommendation";
 export * from "./scanFilesBody";
 export * from "./scanResult";
 export * from "./suggestNameBody";

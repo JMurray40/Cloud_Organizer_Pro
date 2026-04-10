@@ -4,6 +4,7 @@ import filesRouter from "./files";
 import rulesRouter from "./rules";
 import cloudAccountsRouter from "./cloud-accounts";
 import statsRouter from "./stats";
+import oauthRouter from "./oauth";
 
 const router: IRouter = Router();
 
@@ -12,5 +13,6 @@ router.use(filesRouter);
 router.use(rulesRouter);
 router.use(cloudAccountsRouter);
 router.use(statsRouter);
+router.use(oauthRouter);
 
 export default router;

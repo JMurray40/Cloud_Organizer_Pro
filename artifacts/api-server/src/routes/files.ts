@@ -100,6 +100,76 @@ router.post("/files/suggest-name", async (req, res): Promise<void> => {
   });
 });
 
+router.get("/files/duplicates", async (_req, res): Promise<void> => {
+  const allFiles = await db.select().from(filesTable).orderBy(filesTable.createdAt);
+
+  const groups: Record<string, typeof allFiles> = {};
+  for (const file of allFiles) {
+    const normalised = file.originalName
+      .toLowerCase()
+      .replace(/\s*\(\d+\)\s*/g, "")
+      .replace(/\s*-\s*copy\s*/gi, "")
+      .replace(/\s*copy\s*/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    const base = normalised.replace(/\.[^.]+$/, "");
+    if (!groups[base]) groups[base] = [];
+    groups[base].push(file);
+  }
+
+  const duplicateGroups = Object.entries(groups)
+    .filter(([, files]) => files.length > 1 || files.some((f) => f.isDuplicate))
+    .map(([key, files]) => ({
+      groupKey: key,
+      files,
+      reason: files.some((f) => f.isDuplicate) ? "Flagged as duplicate" : "Similar filename detected",
+    }));
+
+  res.json(duplicateGroups);
+});
+
+router.post("/files/bulk-rename", async (req, res): Promise<void> => {
+  const { fileIds, action } = req.body;
+
+  if (!Array.isArray(fileIds) || fileIds.length === 0) {
+    res.status(400).json({ error: "fileIds must be a non-empty array" });
+    return;
+  }
+
+  let updated = 0;
+  let skipped = 0;
+  const scriptLines: string[] = ["#!/bin/bash", "# FileOrbit — Batch Rename Script", `# Generated: ${new Date().toISOString()}`, ""];
+
+  for (const id of fileIds) {
+    const [file] = await db.select().from(filesTable).where(eq(filesTable.id, id));
+    if (!file || file.status === "organized") {
+      skipped++;
+      continue;
+    }
+
+    scriptLines.push(`# ${file.category}/${file.subCategory ?? "General"}`);
+    scriptLines.push(`mv "${file.currentName}" "${file.suggestedName}"`);
+    if (file.suggestedPath) {
+      scriptLines.push(`mv "${file.suggestedName}" "${file.suggestedPath}/${file.suggestedName}"`);
+    }
+    scriptLines.push("");
+
+    if (action === "apply") {
+      await db
+        .update(filesTable)
+        .set({ currentName: file.suggestedName, currentPath: file.suggestedPath, status: "organized" })
+        .where(eq(filesTable.id, id));
+    }
+    updated++;
+  }
+
+  res.json({
+    updated,
+    skipped,
+    script: action === "download-script" ? scriptLines.join("\n") : null,
+  });
+});
+
 router.post("/files/scan", async (req, res): Promise<void> => {
   const parsed = ScanFilesBody.safeParse(req.body);
   if (!parsed.success) {

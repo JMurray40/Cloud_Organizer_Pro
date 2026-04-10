@@ -10,6 +10,7 @@ import DropPage from "@/pages/drop";
 import RulesPage from "@/pages/rules";
 import AccountsPage from "@/pages/accounts";
 import ConventionPage from "@/pages/convention";
+import DuplicatesPage from "@/pages/duplicates";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -25,6 +26,7 @@ function Router() {
         <Route path="/rules" component={RulesPage} />
         <Route path="/accounts" component={AccountsPage} />
         <Route path="/convention" component={ConventionPage} />
+        <Route path="/duplicates" component={DuplicatesPage} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

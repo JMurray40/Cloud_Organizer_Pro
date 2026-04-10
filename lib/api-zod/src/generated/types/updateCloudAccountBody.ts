@@ -11,4 +11,6 @@ export interface UpdateCloudAccountBody {
   accountLabel?: string;
   rootPath?: string;
   isActive?: boolean;
+  quotaTotalGb?: number;
+  quotaUsedGb?: number;
 }

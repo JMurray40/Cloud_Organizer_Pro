@@ -17,6 +17,8 @@ tags:
     description: Cloud storage accounts
   - name: stats
     description: Dashboard statistics
+  - name: oauth
+    description: OAuth connection flow
 paths:
   /healthz:
     get:
@@ -180,6 +182,40 @@ paths:
                 items:
                   $ref: "#/components/schemas/ScanResult"
 
+  /files/duplicates:
+    get:
+      operationId: getDuplicates
+      tags: [files]
+      summary: Get groups of duplicate files
+      responses:
+        "200":
+          description: Groups of duplicate files
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DuplicateGroup"
+
+  /files/bulk-rename:
+    post:
+      operationId: bulkRenameFiles
+      tags: [files]
+      summary: Apply suggested names to multiple files at once
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkRenameBody"
+      responses:
+        "200":
+          description: Rename results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkRenameResult"
+
   /rules:
     get:
       operationId: listRules
@@ -284,6 +320,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudAccount"
 
+  /cloud-accounts/recommend-placement:
+    get:
+      operationId: getPlacementRecommendation
+      tags: [cloud-accounts]
+      summary: Recommend the best cloud account for saving a new file based on available space
+      parameters:
+        - in: query
+          name: fileSizeGb
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Placement recommendation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlacementRecommendation"
+
   /cloud-accounts/{id}:
     patch:
       operationId: updateCloudAccount
@@ -323,6 +377,50 @@ paths:
       responses:
         "204":
           description: Deleted
+
+  /oauth/connect/{provider}:
+    get:
+      operationId: getOAuthConnectUrl
+      tags: [oauth]
+      summary: Get the OAuth authorization URL for a provider
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OAuth authorization URL and session info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthConnectResponse"
+
+  /oauth/callback/{provider}:
+    post:
+      operationId: completeOAuthConnect
+      tags: [oauth]
+      summary: Complete OAuth flow and register cloud account
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OAuthCallbackBody"
+      responses:
+        "201":
+          description: Connected cloud account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudAccount"
 
   /stats/dashboard:
     get:
@@ -537,6 +635,50 @@ components:
         - isDuplicateRisk
         - explanation
 
+    DuplicateGroup:
+      type: object
+      properties:
+        groupKey:
+          type: string
+        files:
+          type: array
+          items:
+            $ref: "#/components/schemas/FileRecord"
+        reason:
+          type: string
+      required:
+        - groupKey
+        - files
+        - reason
+
+    BulkRenameBody:
+      type: object
+      properties:
+        fileIds:
+          type: array
+          items:
+            type: integer
+        action:
+          type: string
+          description: "apply | download-script"
+      required:
+        - fileIds
+        - action
+
+    BulkRenameResult:
+      type: object
+      properties:
+        updated:
+          type: integer
+        skipped:
+          type: integer
+        script:
+          type: ["string", "null"]
+          description: "Shell rename script (if action=download-script)"
+      required:
+        - updated
+        - skipped
+
     NamingRule:
       type: object
       properties:
@@ -631,6 +773,12 @@ components:
           type: boolean
         fileCount:
           type: integer
+        quotaTotalGb:
+          type: ["number", "null"]
+        quotaUsedGb:
+          type: ["number", "null"]
+        connectedViaOAuth:
+          type: boolean
         createdAt:
           type: string
           format: date-time
@@ -642,6 +790,9 @@ components:
         - rootPath
         - isActive
         - fileCount
+        - quotaTotalGb
+        - quotaUsedGb
+        - connectedViaOAuth
         - createdAt
 
     CreateCloudAccountBody:
@@ -655,6 +806,12 @@ components:
           type: string
         rootPath:
           type: ["string", "null"]
+        quotaTotalGb:
+          type: ["number", "null"]
+        quotaUsedGb:
+          type: ["number", "null"]
+        connectedViaOAuth:
+          type: boolean
       required:
         - name
         - provider
@@ -671,6 +828,84 @@ components:
           type: string
         isActive:
           type: boolean
+        quotaTotalGb:
+          type: number
+        quotaUsedGb:
+          type: number
+
+    PlacementRecommendation:
+      type: object
+      properties:
+        recommendedAccountId:
+          type: ["integer", "null"]
+        recommendedAccountName:
+          type: string
+        reason:
+          type: string
+        accounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccountStorageSummary"
+      required:
+        - reason
+        - accounts
+
+    AccountStorageSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        provider:
+          type: string
+        quotaTotalGb:
+          type: ["number", "null"]
+        quotaUsedGb:
+          type: ["number", "null"]
+        freeGb:
+          type: ["number", "null"]
+        percentUsed:
+          type: ["number", "null"]
+      required:
+        - id
+        - name
+        - provider
+
+    OAuthConnectResponse:
+      type: object
+      properties:
+        provider:
+          type: string
+        authUrl:
+          type: string
+        state:
+          type: string
+        instructions:
+          type: string
+      required:
+        - provider
+        - authUrl
+        - state
+        - instructions
+
+    OAuthCallbackBody:
+      type: object
+      properties:
+        state:
+          type: string
+        accountLabel:
+          type: string
+        accountName:
+          type: string
+        simulatedQuotaTotalGb:
+          type: number
+        simulatedQuotaUsedGb:
+          type: number
+      required:
+        - state
+        - accountLabel
+        - accountName
 
     DashboardStats:
       type: object

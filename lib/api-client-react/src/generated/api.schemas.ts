@@ -91,6 +91,28 @@ export interface ScanResult {
   explanation: string;
 }
 
+export interface DuplicateGroup {
+  groupKey: string;
+  files: FileRecord[];
+  reason: string;
+}
+
+export interface BulkRenameBody {
+  fileIds: number[];
+  /** apply | download-script */
+  action: string;
+}
+
+export interface BulkRenameResult {
+  updated: number;
+  skipped: number;
+  /**
+   * Shell rename script (if action=download-script)
+   * @nullable
+   */
+  script?: string | null;
+}
+
 export interface NamingRule {
   id: number;
   name: string;
@@ -135,6 +157,11 @@ export interface CloudAccount {
   rootPath: string | null;
   isActive: boolean;
   fileCount: number;
+  /** @nullable */
+  quotaTotalGb: number | null;
+  /** @nullable */
+  quotaUsedGb: number | null;
+  connectedViaOAuth: boolean;
   createdAt: string;
 }
 
@@ -144,6 +171,11 @@ export interface CreateCloudAccountBody {
   accountLabel: string;
   /** @nullable */
   rootPath?: string | null;
+  /** @nullable */
+  quotaTotalGb?: number | null;
+  /** @nullable */
+  quotaUsedGb?: number | null;
+  connectedViaOAuth?: boolean;
 }
 
 export interface UpdateCloudAccountBody {
@@ -151,6 +183,45 @@ export interface UpdateCloudAccountBody {
   accountLabel?: string;
   rootPath?: string;
   isActive?: boolean;
+  quotaTotalGb?: number;
+  quotaUsedGb?: number;
+}
+
+export interface AccountStorageSummary {
+  id: number;
+  name: string;
+  provider: string;
+  /** @nullable */
+  quotaTotalGb?: number | null;
+  /** @nullable */
+  quotaUsedGb?: number | null;
+  /** @nullable */
+  freeGb?: number | null;
+  /** @nullable */
+  percentUsed?: number | null;
+}
+
+export interface PlacementRecommendation {
+  /** @nullable */
+  recommendedAccountId?: number | null;
+  recommendedAccountName?: string;
+  reason: string;
+  accounts: AccountStorageSummary[];
+}
+
+export interface OAuthConnectResponse {
+  provider: string;
+  authUrl: string;
+  state: string;
+  instructions: string;
+}
+
+export interface OAuthCallbackBody {
+  state: string;
+  accountLabel: string;
+  accountName: string;
+  simulatedQuotaTotalGb?: number;
+  simulatedQuotaUsedGb?: number;
 }
 
 export interface DashboardStats {
@@ -175,4 +246,8 @@ export type ListFilesParams = {
    */
   cloudAccountId?: number | null;
   search?: string;
+};
+
+export type GetPlacementRecommendationParams = {
+  fileSizeGb?: number;
 };

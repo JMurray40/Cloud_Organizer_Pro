@@ -6,15 +6,16 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface CreateCloudAccountBody {
+export interface AccountStorageSummary {
+  id: number;
   name: string;
   provider: string;
-  accountLabel: string;
-  /** @nullable */
-  rootPath?: string | null;
   /** @nullable */
   quotaTotalGb?: number | null;
   /** @nullable */
   quotaUsedGb?: number | null;
-  connectedViaOAuth?: boolean;
+  /** @nullable */
+  freeGb?: number | null;
+  /** @nullable */
+  percentUsed?: number | null;
 }

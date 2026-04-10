@@ -1,10 +1,11 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Files, Search, Upload, BookOpen, Cloud, Settings, FolderOpen } from "lucide-react";
+import { LayoutDashboard, Files, Search, Upload, BookOpen, Cloud, FolderOpen, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/files", label: "Files", icon: Files },
+  { href: "/duplicates", label: "Duplicates", icon: Copy },
   { href: "/scan", label: "Scan & Organize", icon: Search },
   { href: "/drop", label: "Drop Zone", icon: Upload },
   { href: "/rules", label: "Naming Rules", icon: BookOpen },

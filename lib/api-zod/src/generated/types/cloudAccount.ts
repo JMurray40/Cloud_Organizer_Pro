@@ -16,5 +16,10 @@ export interface CloudAccount {
   rootPath: string | null;
   isActive: boolean;
   fileCount: number;
+  /** @nullable */
+  quotaTotalGb: number | null;
+  /** @nullable */
+  quotaUsedGb: number | null;
+  connectedViaOAuth: boolean;
   createdAt: Date;
 }
