@@ -23,13 +23,16 @@ import type {
   CloudAccount,
   CreateCloudAccountBody,
   CreateFileBody,
+  CreateHistoryBody,
   CreateRuleBody,
   DashboardStats,
   DuplicateGroup,
   FileRecord,
   GetPlacementRecommendationParams,
   HealthStatus,
+  HistoryEntry,
   ListFilesParams,
+  ListHistoryParams,
   NameSuggestion,
   NamingRule,
   OAuthCallbackBody,
@@ -38,6 +41,7 @@ import type {
   ScanFilesBody,
   ScanResult,
   SuggestNameBody,
+  UndoResult,
   UpdateCloudAccountBody,
   UpdateFileBody,
   UpdateRuleBody,
@@ -1828,6 +1832,270 @@ export const useCompleteOAuthConnect = <
   TContext
 > => {
   return useMutation(getCompleteOAuthConnectMutationOptions(options));
+};
+
+/**
+ * @summary List rename/organize action history
+ */
+export const getListHistoryUrl = (params?: ListHistoryParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/history?${stringifiedParams}`
+    : `/api/history`;
+};
+
+export const listHistory = async (
+  params?: ListHistoryParams,
+  options?: RequestInit,
+): Promise<HistoryEntry[]> => {
+  return customFetch<HistoryEntry[]>(getListHistoryUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListHistoryQueryKey = (params?: ListHistoryParams) => {
+  return [`/api/history`, ...(params ? [params] : [])] as const;
+};
+
+export const getListHistoryQueryOptions = <
+  TData = Awaited<ReturnType<typeof listHistory>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListHistoryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListHistoryQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listHistory>>> = ({
+    signal,
+  }) => listHistory(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listHistory>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListHistoryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listHistory>>
+>;
+export type ListHistoryQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List rename/organize action history
+ */
+
+export function useListHistory<
+  TData = Awaited<ReturnType<typeof listHistory>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListHistoryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListHistoryQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Record a rename action in history
+ */
+export const getCreateHistoryEntryUrl = () => {
+  return `/api/history`;
+};
+
+export const createHistoryEntry = async (
+  createHistoryBody: CreateHistoryBody,
+  options?: RequestInit,
+): Promise<HistoryEntry> => {
+  return customFetch<HistoryEntry>(getCreateHistoryEntryUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createHistoryBody),
+  });
+};
+
+export const getCreateHistoryEntryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createHistoryEntry>>,
+    TError,
+    { data: BodyType<CreateHistoryBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createHistoryEntry>>,
+  TError,
+  { data: BodyType<CreateHistoryBody> },
+  TContext
+> => {
+  const mutationKey = ["createHistoryEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createHistoryEntry>>,
+    { data: BodyType<CreateHistoryBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createHistoryEntry(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateHistoryEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createHistoryEntry>>
+>;
+export type CreateHistoryEntryMutationBody = BodyType<CreateHistoryBody>;
+export type CreateHistoryEntryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Record a rename action in history
+ */
+export const useCreateHistoryEntry = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createHistoryEntry>>,
+    TError,
+    { data: BodyType<CreateHistoryBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createHistoryEntry>>,
+  TError,
+  { data: BodyType<CreateHistoryBody> },
+  TContext
+> => {
+  return useMutation(getCreateHistoryEntryMutationOptions(options));
+};
+
+/**
+ * @summary Undo a rename or status change
+ */
+export const getUndoHistoryEntryUrl = (id: number) => {
+  return `/api/history/${id}/undo`;
+};
+
+export const undoHistoryEntry = async (
+  id: number,
+  options?: RequestInit,
+): Promise<UndoResult> => {
+  return customFetch<UndoResult>(getUndoHistoryEntryUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getUndoHistoryEntryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof undoHistoryEntry>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof undoHistoryEntry>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["undoHistoryEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof undoHistoryEntry>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return undoHistoryEntry(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UndoHistoryEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof undoHistoryEntry>>
+>;
+
+export type UndoHistoryEntryMutationError = ErrorType<void>;
+
+/**
+ * @summary Undo a rename or status change
+ */
+export const useUndoHistoryEntry = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof undoHistoryEntry>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof undoHistoryEntry>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getUndoHistoryEntryMutationOptions(options));
 };
 
 /**

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, ilike, or } from "drizzle-orm";
-import { db, filesTable } from "@workspace/db";
+import { db, filesTable, renameHistoryTable } from "@workspace/db";
 import {
   CreateFileBody,
   UpdateFileBody,
@@ -159,6 +159,17 @@ router.post("/files/bulk-rename", async (req, res): Promise<void> => {
         .update(filesTable)
         .set({ currentName: file.suggestedName, currentPath: file.suggestedPath, status: "organized" })
         .where(eq(filesTable.id, id));
+
+      await db.insert(renameHistoryTable).values({
+        fileId: file.id,
+        fileOriginalName: file.originalName,
+        action: "bulk_renamed",
+        oldName: file.currentName,
+        newName: file.suggestedName,
+        oldStatus: file.status,
+        newStatus: "organized",
+        notes: "Applied via bulk rename",
+      });
     }
     updated++;
   }
@@ -179,10 +190,13 @@ router.post("/files/scan", async (req, res): Promise<void> => {
 
   const { filenames } = parsed.data;
 
+  const existingFiles = await db.select({ currentName: filesTable.currentName }).from(filesTable);
+  const existingNames = existingFiles.map((f) => f.currentName);
+
   const results = filenames.map((filename: string) => {
     const detectedCategory = detectCategory(filename);
     const detectedSubCategory = detectSubCategory(filename, detectedCategory);
-    const suggestion = applyNamingConvention(filename, detectedCategory, detectedSubCategory);
+    const suggestion = applyNamingConvention(filename, detectedCategory, detectedSubCategory, existingNames);
     const isDuplicateRisk = filename.toLowerCase().includes("copy") ||
       filename.toLowerCase().includes("backup") ||
       /\(\d+\)/.test(filename) ||
@@ -196,6 +210,7 @@ router.post("/files/scan", async (req, res): Promise<void> => {
       subCategory: detectedSubCategory ?? null,
       isDuplicateRisk,
       explanation: suggestion.explanation,
+      confidence: suggestion.confidence,
     };
   });
 
@@ -231,6 +246,12 @@ router.patch("/files/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  const [before] = await db.select().from(filesTable).where(eq(filesTable.id, params.data.id));
+  if (!before) {
+    res.status(404).json({ error: "File not found" });
+    return;
+  }
+
   const [file] = await db
     .update(filesTable)
     .set(parsed.data)
@@ -240,6 +261,26 @@ router.patch("/files/:id", async (req, res): Promise<void> => {
   if (!file) {
     res.status(404).json({ error: "File not found" });
     return;
+  }
+
+  const statusChanged = parsed.data.status && parsed.data.status !== before.status;
+  const nameChanged = parsed.data.currentName && parsed.data.currentName !== before.currentName;
+
+  if (statusChanged || nameChanged) {
+    const action = parsed.data.status === "organized" ? "organized"
+      : parsed.data.status === "ignored" ? "ignored"
+      : nameChanged ? "renamed"
+      : "updated";
+
+    await db.insert(renameHistoryTable).values({
+      fileId: file.id,
+      fileOriginalName: file.originalName,
+      action,
+      oldName: nameChanged ? before.currentName : null,
+      newName: nameChanged ? file.currentName : null,
+      oldStatus: statusChanged ? before.status : null,
+      newStatus: statusChanged ? file.status : null,
+    });
   }
 
   res.json(file);

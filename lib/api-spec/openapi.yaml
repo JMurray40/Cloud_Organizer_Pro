@@ -422,6 +422,64 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudAccount"
 
+  /history:
+    get:
+      operationId: listHistory
+      tags: [files]
+      summary: List rename/organize action history
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: History entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HistoryEntry"
+    post:
+      operationId: createHistoryEntry
+      tags: [files]
+      summary: Record a rename action in history
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateHistoryBody"
+      responses:
+        "201":
+          description: Created history entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryEntry"
+
+  /history/{id}/undo:
+    post:
+      operationId: undoHistoryEntry
+      tags: [files]
+      summary: Undo a rename or status change
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Undo result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UndoResult"
+        "404":
+          description: History entry not found
+
   /stats/dashboard:
     get:
       operationId: getDashboardStats
@@ -627,6 +685,8 @@ components:
           type: boolean
         explanation:
           type: string
+        confidence:
+          type: integer
       required:
         - originalName
         - suggestedName
@@ -634,6 +694,73 @@ components:
         - category
         - isDuplicateRisk
         - explanation
+        - confidence
+
+    HistoryEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        fileId:
+          type: ["integer", "null"]
+        fileOriginalName:
+          type: string
+        action:
+          type: string
+        oldName:
+          type: ["string", "null"]
+        newName:
+          type: ["string", "null"]
+        oldStatus:
+          type: ["string", "null"]
+        newStatus:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        performedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - fileOriginalName
+        - action
+        - performedAt
+
+    CreateHistoryBody:
+      type: object
+      properties:
+        fileId:
+          type: ["integer", "null"]
+        fileOriginalName:
+          type: string
+        action:
+          type: string
+        oldName:
+          type: ["string", "null"]
+        newName:
+          type: ["string", "null"]
+        oldStatus:
+          type: ["string", "null"]
+        newStatus:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+      required:
+        - fileOriginalName
+        - action
+
+    UndoResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        restoredStatus:
+          type: ["string", "null"]
+      required:
+        - success
+        - message
 
     DuplicateGroup:
       type: object

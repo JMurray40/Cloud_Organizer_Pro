@@ -89,6 +89,50 @@ export interface ScanResult {
   subCategory?: string | null;
   isDuplicateRisk: boolean;
   explanation: string;
+  confidence: number;
+}
+
+export interface HistoryEntry {
+  id: number;
+  /** @nullable */
+  fileId?: number | null;
+  fileOriginalName: string;
+  action: string;
+  /** @nullable */
+  oldName?: string | null;
+  /** @nullable */
+  newName?: string | null;
+  /** @nullable */
+  oldStatus?: string | null;
+  /** @nullable */
+  newStatus?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  performedAt: string;
+}
+
+export interface CreateHistoryBody {
+  /** @nullable */
+  fileId?: number | null;
+  fileOriginalName: string;
+  action: string;
+  /** @nullable */
+  oldName?: string | null;
+  /** @nullable */
+  newName?: string | null;
+  /** @nullable */
+  oldStatus?: string | null;
+  /** @nullable */
+  newStatus?: string | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface UndoResult {
+  success: boolean;
+  message: string;
+  /** @nullable */
+  restoredStatus?: string | null;
 }
 
 export interface DuplicateGroup {
@@ -250,4 +294,8 @@ export type ListFilesParams = {
 
 export type GetPlacementRecommendationParams = {
   fileSizeGb?: number;
+};
+
+export type ListHistoryParams = {
+  limit?: number;
 };

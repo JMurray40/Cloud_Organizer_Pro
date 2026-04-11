@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useListFiles, useUpdateFile, useDeleteFile, getListFilesQueryKey, getGetDashboardStatsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Trash2, CheckCircle2, MinusCircle, Copy, Play, Download, Square, SquareCheck } from "lucide-react";
+import { Search, Trash2, CheckCircle2, MinusCircle, Copy, Play, Download, Square, SquareCheck, ArrowUpDown, ArrowUp, ArrowDown, FileDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { format } from "date-fns";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -27,6 +28,8 @@ export default function FilesPage() {
   const [status, setStatus] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [sortField, setSortField] = useState<"originalName" | "category" | "status" | "createdAt">("createdAt");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -40,6 +43,55 @@ export default function FilesPage() {
   const { data: files, isLoading } = useListFiles(Object.keys(params).length ? params : undefined);
   const updateFile = useUpdateFile();
   const deleteFile = useDeleteFile();
+
+  const sortedFiles = useMemo(() => {
+    if (!files) return [];
+    return [...files].sort((a, b) => {
+      let av = a[sortField] ?? "";
+      let bv = b[sortField] ?? "";
+      if (typeof av === "string") av = av.toLowerCase();
+      if (typeof bv === "string") bv = bv.toLowerCase();
+      if (av < bv) return sortDir === "asc" ? -1 : 1;
+      if (av > bv) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [files, sortField, sortDir]);
+
+  const toggleSort = (field: typeof sortField) => {
+    if (sortField === field) setSortDir((d) => d === "asc" ? "desc" : "asc");
+    else { setSortField(field); setSortDir("asc"); }
+  };
+
+  const SortIcon = ({ field }: { field: typeof sortField }) => {
+    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-40" />;
+    return sortDir === "asc" ? <ArrowUp className="w-3 h-3 ml-1 text-primary" /> : <ArrowDown className="w-3 h-3 ml-1 text-primary" />;
+  };
+
+  const handleExportCSV = () => {
+    if (!files || files.length === 0) return;
+    const headers = ["ID", "Original Name", "Suggested Name", "Category", "Sub-Category", "Suggested Path", "Status", "File Size", "Extension", "Date Added"];
+    const rows = files.map((f) => [
+      f.id,
+      `"${f.originalName.replace(/"/g, '""')}"`,
+      `"${f.suggestedName.replace(/"/g, '""')}"`,
+      f.category,
+      f.subCategory ?? "",
+      `"${f.suggestedPath.replace(/"/g, '""')}"`,
+      f.status,
+      f.fileSize ?? "",
+      f.fileExtension,
+      format(new Date(f.createdAt), "yyyy-MM-dd"),
+    ]);
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `fileorbit-files-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "CSV exported", description: `${files.length} files exported` });
+  };
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: getListFilesQueryKey() });
@@ -127,6 +179,18 @@ export default function FilesPage() {
           <p className="text-sm text-muted-foreground mt-1">All tracked file records with suggested names and paths</p>
         </div>
 
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 h-8 text-xs"
+            onClick={handleExportCSV}
+            disabled={!files || files.length === 0}
+          >
+            <FileDown className="w-3.5 h-3.5" />
+            Export CSV
+          </Button>
+        </div>
         {selected.size > 0 && (
           <div className="flex items-center gap-2 bg-primary/5 border border-primary/20 rounded-lg px-3 py-2">
             <span className="text-sm font-medium text-primary">{selected.size} selected</span>
@@ -194,7 +258,7 @@ export default function FilesPage() {
       </div>
 
       <div className="bg-card border border-card-border rounded-lg overflow-hidden">
-        <div className="grid grid-cols-[32px_1fr_1fr_100px_120px_80px_100px] text-xs font-semibold text-muted-foreground bg-muted/40 px-4 py-2.5 border-b border-border">
+        <div className="grid grid-cols-[32px_1fr_1fr_110px_120px_90px_100px] text-xs font-semibold text-muted-foreground bg-muted/40 px-4 py-2.5 border-b border-border">
           <button
             onClick={toggleSelectAll}
             title={allPendingSelected ? "Deselect all" : "Select all pending"}
@@ -202,24 +266,30 @@ export default function FilesPage() {
           >
             {allPendingSelected ? <SquareCheck className="w-4 h-4 text-primary" /> : <Square className="w-4 h-4" />}
           </button>
-          <span>Original Name</span>
+          <button onClick={() => toggleSort("originalName")} className="flex items-center hover:text-foreground text-left">
+            Original Name <SortIcon field="originalName" />
+          </button>
           <span>Suggested Name</span>
-          <span>Category</span>
+          <button onClick={() => toggleSort("category")} className="flex items-center hover:text-foreground text-left">
+            Category <SortIcon field="category" />
+          </button>
           <span>Suggested Path</span>
-          <span>Status</span>
+          <button onClick={() => toggleSort("status")} className="flex items-center hover:text-foreground text-left">
+            Status <SortIcon field="status" />
+          </button>
           <span>Actions</span>
         </div>
         {isLoading ? (
           <div className="py-12 text-center text-muted-foreground text-sm">Loading files...</div>
-        ) : files && files.length > 0 ? (
-          files.map((file) => {
+        ) : sortedFiles.length > 0 ? (
+          sortedFiles.map((file) => {
             const isSelected = selected.has(file.id);
             return (
               <div
                 key={file.id}
                 data-testid={`row-file-${file.id}`}
                 className={cn(
-                  "grid grid-cols-[32px_1fr_1fr_100px_120px_80px_100px] items-center px-4 py-3 border-b border-border last:border-0 hover:bg-muted/30 transition-colors",
+                  "grid grid-cols-[32px_1fr_1fr_110px_120px_90px_100px] items-center px-4 py-3 border-b border-border last:border-0 hover:bg-muted/30 transition-colors",
                   isSelected && "bg-primary/5"
                 )}
               >

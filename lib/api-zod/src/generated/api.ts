@@ -164,6 +164,7 @@ export const ScanFilesResponseItem = zod.object({
   subCategory: zod.string().nullish(),
   isDuplicateRisk: zod.boolean(),
   explanation: zod.string(),
+  confidence: zod.number(),
 });
 export const ScanFilesResponse = zod.array(ScanFilesResponseItem);
 
@@ -416,6 +417,54 @@ export const CompleteOAuthConnectBody = zod.object({
   accountName: zod.string(),
   simulatedQuotaTotalGb: zod.number().optional(),
   simulatedQuotaUsedGb: zod.number().optional(),
+});
+
+/**
+ * @summary List rename/organize action history
+ */
+export const ListHistoryQueryParams = zod.object({
+  limit: zod.coerce.number().optional(),
+});
+
+export const ListHistoryResponseItem = zod.object({
+  id: zod.number(),
+  fileId: zod.number().nullish(),
+  fileOriginalName: zod.string(),
+  action: zod.string(),
+  oldName: zod.string().nullish(),
+  newName: zod.string().nullish(),
+  oldStatus: zod.string().nullish(),
+  newStatus: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  performedAt: zod.coerce.date(),
+});
+export const ListHistoryResponse = zod.array(ListHistoryResponseItem);
+
+/**
+ * @summary Record a rename action in history
+ */
+export const CreateHistoryEntryBody = zod.object({
+  fileId: zod.number().nullish(),
+  fileOriginalName: zod.string(),
+  action: zod.string(),
+  oldName: zod.string().nullish(),
+  newName: zod.string().nullish(),
+  oldStatus: zod.string().nullish(),
+  newStatus: zod.string().nullish(),
+  notes: zod.string().nullish(),
+});
+
+/**
+ * @summary Undo a rename or status change
+ */
+export const UndoHistoryEntryParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UndoHistoryEntryResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string(),
+  restoredStatus: zod.string().nullish(),
 });
 
 /**

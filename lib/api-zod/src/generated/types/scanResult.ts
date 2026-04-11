@@ -15,4 +15,5 @@ export interface ScanResult {
   subCategory?: string | null;
   isDuplicateRisk: boolean;
   explanation: string;
+  confidence: number;
 }
