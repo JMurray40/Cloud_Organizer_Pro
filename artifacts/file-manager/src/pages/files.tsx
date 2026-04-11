@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useListFiles, useUpdateFile, useDeleteFile, getListFilesQueryKey, getDashboardStatsQueryKey } from "@workspace/api-client-react";
+import { useListFiles, useUpdateFile, useDeleteFile, getListFilesQueryKey, getGetDashboardStatsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Search, Trash2, CheckCircle2, MinusCircle, Copy, Play, Download, Square, SquareCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -43,7 +43,7 @@ export default function FilesPage() {
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: getListFilesQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getDashboardStatsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetDashboardStatsQueryKey() });
   };
 
   const handleStatusChange = (id: number, newStatus: string) => {
