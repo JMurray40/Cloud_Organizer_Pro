@@ -156,8 +156,7 @@ router.post("/files/bulk-rename", async (req, res): Promise<void> => {
 
   const candidateById = new Map(candidates.map((f) => [f.id, f]));
 
-  let updated = 0;
-  let skipped = 0;
+  // Always build the script (script generation never touches the DB)
   const scriptLines: string[] = [
     "#!/bin/bash",
     "# FileOrbit — Batch Rename Script",
@@ -166,6 +165,8 @@ router.post("/files/bulk-rename", async (req, res): Promise<void> => {
     "",
   ];
   const ensuredDirs = new Set<string>();
+  let scriptUpdated = 0;
+  let skipped = 0;
 
   for (const id of fileIds) {
     const file = candidateById.get(id);
@@ -173,7 +174,6 @@ router.post("/files/bulk-rename", async (req, res): Promise<void> => {
       skipped++;
       continue;
     }
-
     scriptLines.push(`# ${file.category}/${file.subCategory ?? "General"}`);
     if (file.suggestedPath && !ensuredDirs.has(file.suggestedPath)) {
       scriptLines.push(`mkdir -p "${file.suggestedPath}"`);
@@ -185,26 +185,36 @@ router.post("/files/bulk-rename", async (req, res): Promise<void> => {
       scriptLines.push(`mv "${file.currentName}" "${file.suggestedName}"`);
     }
     scriptLines.push("");
+    scriptUpdated++;
+  }
 
-    if (action === "apply") {
-      await db
-        .update(filesTable)
-        .set({ currentName: file.suggestedName, currentPath: file.suggestedPath, status: "organized" })
-        .where(and(eq(filesTable.id, id), eq(filesTable.userId, userId)));
+  let updated = scriptUpdated;
 
-      await db.insert(renameHistoryTable).values({
-        userId,
-        fileId: file.id,
-        fileOriginalName: file.originalName,
-        action: "bulk_renamed",
-        oldName: file.currentName,
-        newName: file.suggestedName,
-        oldStatus: file.status,
-        newStatus: "organized",
-        notes: "Applied via bulk rename",
-      });
-    }
-    updated++;
+  if (action === "apply") {
+    // Wrap all DB writes in a single transaction so a mid-batch failure rolls back everything
+    await db.transaction(async (tx) => {
+      for (const id of fileIds) {
+        const file = candidateById.get(id);
+        if (!file || file.status === "organized") continue;
+
+        await tx
+          .update(filesTable)
+          .set({ currentName: file.suggestedName, currentPath: file.suggestedPath, status: "organized" })
+          .where(and(eq(filesTable.id, id), eq(filesTable.userId, userId)));
+
+        await tx.insert(renameHistoryTable).values({
+          userId,
+          fileId: file.id,
+          fileOriginalName: file.originalName,
+          action: "bulk_renamed",
+          oldName: file.currentName,
+          newName: file.suggestedName,
+          oldStatus: file.status,
+          newStatus: "organized",
+          notes: "Applied via bulk rename",
+        });
+      }
+    });
   }
 
   res.json({

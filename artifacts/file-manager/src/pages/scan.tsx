@@ -21,6 +21,7 @@ export default function ScanPage() {
   const [input, setInput] = useState("");
   const [results, setResults] = useState<ScanResultItem[]>([]);
   const [accepted, setAccepted] = useState<Set<number>>(new Set());
+  const [acceptAllProgress, setAcceptAllProgress] = useState<{ done: number; total: number } | null>(null);
   const [csvFileName, setCsvFileName] = useState<string | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState("_none");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -85,23 +86,38 @@ export default function ScanPage() {
     );
   };
 
-  const handleAcceptAll = () => {
-    Promise.all(
-      results.map((r) =>
-        createFile.mutateAsync({
+  const handleAcceptAll = async () => {
+    const total = results.length;
+    setAcceptAllProgress({ done: 0, total });
+    let errors = 0;
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      try {
+        await createFile.mutateAsync({
           data: {
             originalName: r.originalName,
             category: r.category,
             subCategory: r.subCategory ?? undefined,
             ...(accountId != null ? { cloudAccountId: accountId } : {}),
           },
-        })
-      )
-    ).then(() => {
-      queryClient.invalidateQueries({ queryKey: getListFilesQueryKey() });
-      setAccepted(new Set(results.map((_, i) => i)));
-      toast({ title: `${results.length} files added to tracking` });
-    });
+        });
+        setAccepted((prev) => new Set([...prev, i]));
+      } catch {
+        errors++;
+      }
+      setAcceptAllProgress({ done: i + 1, total });
+    }
+    queryClient.invalidateQueries({ queryKey: getListFilesQueryKey() });
+    setAcceptAllProgress(null);
+    if (errors === 0) {
+      toast({ title: `${total} files added to tracking` });
+    } else {
+      toast({
+        title: `${total - errors} of ${total} files added`,
+        description: `${errors} file${errors > 1 ? "s" : ""} failed — try accepting them individually.`,
+        variant: "destructive",
+      });
+    }
   };
 
   const handleAcceptOne = (index: number, result: ScanResultItem) => {
@@ -219,11 +235,13 @@ export default function ScanPage() {
               data-testid="button-accept-all"
               variant="outline"
               onClick={handleAcceptAll}
-              disabled={createFile.isPending}
+              disabled={acceptAllProgress !== null}
               className="gap-2"
             >
               <CheckCircle2 className="w-4 h-4" />
-              Accept All ({results.length})
+              {acceptAllProgress
+                ? `Adding ${acceptAllProgress.done}/${acceptAllProgress.total}…`
+                : `Accept All (${results.length})`}
             </Button>
           )}
         </div>
