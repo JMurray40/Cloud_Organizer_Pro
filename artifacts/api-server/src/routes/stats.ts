@@ -1,10 +1,13 @@
 import { Router, type IRouter } from "express";
 import { db, filesTable, cloudAccountsTable, namingRulesTable, orgScoreSnapshotsTable } from "@workspace/db";
-import { eq, sql, desc, gte } from "drizzle-orm";
+import { and, eq, sql, desc, gte } from "drizzle-orm";
+import { getUserId } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
-router.get("/stats/dashboard", async (_req, res): Promise<void> => {
+router.get("/stats/dashboard", async (req, res): Promise<void> => {
+  const userId = getUserId(req);
+
   const [filesStats] = await db
     .select({
       total: sql<number>`count(*)::int`,
@@ -13,17 +16,18 @@ router.get("/stats/dashboard", async (_req, res): Promise<void> => {
       renamed: sql<number>`count(*) filter (where status = 'renamed')::int`,
       duplicates: sql<number>`count(*) filter (where is_duplicate = true)::int`,
     })
-    .from(filesTable);
+    .from(filesTable)
+    .where(eq(filesTable.userId, userId));
 
   const [accountsStats] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(cloudAccountsTable)
-    .where(eq(cloudAccountsTable.isActive, true));
+    .where(and(eq(cloudAccountsTable.userId, userId), eq(cloudAccountsTable.isActive, true)));
 
   const [rulesStats] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(namingRulesTable)
-    .where(eq(namingRulesTable.isActive, true));
+    .where(and(eq(namingRulesTable.userId, userId), eq(namingRulesTable.isActive, true)));
 
   const fileTypeRows = await db
     .select({
@@ -31,6 +35,7 @@ router.get("/stats/dashboard", async (_req, res): Promise<void> => {
       count: sql<number>`count(*)::int`,
     })
     .from(filesTable)
+    .where(eq(filesTable.userId, userId))
     .groupBy(filesTable.fileExtension)
     .orderBy(sql`count(*) desc`)
     .limit(8);
@@ -39,7 +44,8 @@ router.get("/stats/dashboard", async (_req, res): Promise<void> => {
     .select({
       totalDupBytes: sql<number>`coalesce(sum(file_size) filter (where is_duplicate = true), 0)::bigint`,
     })
-    .from(filesTable);
+    .from(filesTable)
+    .where(eq(filesTable.userId, userId));
 
   res.json({
     totalFiles: filesStats?.total ?? 0,
@@ -54,30 +60,35 @@ router.get("/stats/dashboard", async (_req, res): Promise<void> => {
   });
 });
 
-router.get("/stats/category-breakdown", async (_req, res): Promise<void> => {
+router.get("/stats/category-breakdown", async (req, res): Promise<void> => {
+  const userId = getUserId(req);
   const breakdown = await db
     .select({
       category: filesTable.category,
       count: sql<number>`count(*)::int`,
     })
     .from(filesTable)
+    .where(eq(filesTable.userId, userId))
     .groupBy(filesTable.category)
     .orderBy(sql`count(*) desc`);
 
   res.json(breakdown);
 });
 
-router.get("/stats/recent-activity", async (_req, res): Promise<void> => {
+router.get("/stats/recent-activity", async (req, res): Promise<void> => {
+  const userId = getUserId(req);
   const recent = await db
     .select()
     .from(filesTable)
+    .where(eq(filesTable.userId, userId))
     .orderBy(desc(filesTable.updatedAt))
     .limit(10);
 
   res.json(recent);
 });
 
-router.get("/stats/org-trend", async (_req, res): Promise<void> => {
+router.get("/stats/org-trend", async (req, res): Promise<void> => {
+  const userId = getUserId(req);
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const cutoff = thirtyDaysAgo.toISOString().split("T")[0];
@@ -85,20 +96,22 @@ router.get("/stats/org-trend", async (_req, res): Promise<void> => {
   const snapshots = await db
     .select()
     .from(orgScoreSnapshotsTable)
-    .where(gte(orgScoreSnapshotsTable.date, cutoff))
+    .where(and(eq(orgScoreSnapshotsTable.userId, userId), gte(orgScoreSnapshotsTable.date, cutoff)))
     .orderBy(orgScoreSnapshotsTable.date);
 
   res.json(snapshots);
 });
 
-router.post("/stats/org-trend/record", async (_req, res): Promise<void> => {
+router.post("/stats/org-trend/record", async (req, res): Promise<void> => {
+  const userId = getUserId(req);
   const [filesStats] = await db
     .select({
       total: sql<number>`count(*)::int`,
       organized: sql<number>`count(*) filter (where status = 'organized')::int`,
       renamed: sql<number>`count(*) filter (where status = 'renamed')::int`,
     })
-    .from(filesTable);
+    .from(filesTable)
+    .where(eq(filesTable.userId, userId));
 
   const total = filesStats?.total ?? 0;
   const organized = filesStats?.organized ?? 0;
@@ -108,9 +121,9 @@ router.post("/stats/org-trend/record", async (_req, res): Promise<void> => {
 
   const [snapshot] = await db
     .insert(orgScoreSnapshotsTable)
-    .values({ date: today, score, totalFiles: total, organizedFiles: organized, renamedFiles: renamed })
+    .values({ userId, date: today, score, totalFiles: total, organizedFiles: organized, renamedFiles: renamed })
     .onConflictDoUpdate({
-      target: orgScoreSnapshotsTable.date,
+      target: [orgScoreSnapshotsTable.userId, orgScoreSnapshotsTable.date],
       set: { score, totalFiles: total, organizedFiles: organized, renamedFiles: renamed },
     })
     .returning();

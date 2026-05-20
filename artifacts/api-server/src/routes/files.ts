@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, ilike, or } from "drizzle-orm";
+import { eq, and, ilike, or, inArray, desc } from "drizzle-orm";
 import { db, filesTable, renameHistoryTable } from "@workspace/db";
 import {
   CreateFileBody,
@@ -12,10 +12,12 @@ import {
   ScanFilesBody,
 } from "@workspace/api-zod";
 import { applyNamingConvention } from "../lib/naming";
+import { getUserId } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
 router.get("/files", async (req, res): Promise<void> => {
+  const userId = getUserId(req);
   const parsed = ListFilesQueryParams.safeParse(req.query);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -23,7 +25,7 @@ router.get("/files", async (req, res): Promise<void> => {
   }
   const { category, status, cloudAccountId, search } = parsed.data;
 
-  const conditions = [];
+  const conditions = [eq(filesTable.userId, userId)];
   if (category) conditions.push(eq(filesTable.category, category));
   if (status) conditions.push(eq(filesTable.status, status));
   if (cloudAccountId != null) conditions.push(eq(filesTable.cloudAccountId, cloudAccountId));
@@ -40,13 +42,14 @@ router.get("/files", async (req, res): Promise<void> => {
   const files = await db
     .select()
     .from(filesTable)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(filesTable.createdAt);
+    .where(and(...conditions))
+    .orderBy(desc(filesTable.createdAt));
 
   res.json(files);
 });
 
 router.post("/files", async (req, res): Promise<void> => {
+  const userId = getUserId(req);
   const parsed = CreateFileBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -59,6 +62,7 @@ router.post("/files", async (req, res): Promise<void> => {
   const [file] = await db
     .insert(filesTable)
     .values({
+      userId,
       originalName,
       suggestedName: suggestion.suggestedName,
       currentName: originalName,
@@ -75,10 +79,6 @@ router.post("/files", async (req, res): Promise<void> => {
     .returning();
 
   res.status(201).json(file);
-});
-
-router.get("/files/suggest-name", async (req, res): Promise<void> => {
-  res.status(405).json({ error: "Use POST" });
 });
 
 router.post("/files/suggest-name", async (req, res): Promise<void> => {
@@ -100,8 +100,13 @@ router.post("/files/suggest-name", async (req, res): Promise<void> => {
   });
 });
 
-router.get("/files/duplicates", async (_req, res): Promise<void> => {
-  const allFiles = await db.select().from(filesTable).orderBy(filesTable.createdAt);
+router.get("/files/duplicates", async (req, res): Promise<void> => {
+  const userId = getUserId(req);
+  const allFiles = await db
+    .select()
+    .from(filesTable)
+    .where(eq(filesTable.userId, userId))
+    .orderBy(filesTable.createdAt);
 
   const groups: Record<string, typeof allFiles> = {};
   for (const file of allFiles) {
@@ -113,6 +118,8 @@ router.get("/files/duplicates", async (_req, res): Promise<void> => {
       .replace(/\s+/g, " ")
       .trim();
     const base = normalised.replace(/\.[^.]+$/, "");
+    // Skip empty/unparseable bases — they would otherwise lump unrelated files together.
+    if (!base) continue;
     if (!groups[base]) groups[base] = [];
     groups[base].push(file);
   }
@@ -129,28 +136,53 @@ router.get("/files/duplicates", async (_req, res): Promise<void> => {
 });
 
 router.post("/files/bulk-rename", async (req, res): Promise<void> => {
+  const userId = getUserId(req);
   const { fileIds, action } = req.body;
 
   if (!Array.isArray(fileIds) || fileIds.length === 0) {
     res.status(400).json({ error: "fileIds must be a non-empty array" });
     return;
   }
+  if (fileIds.length > 500) {
+    res.status(400).json({ error: "Bulk rename limited to 500 files per request" });
+    return;
+  }
+
+  // Fetch all candidate files in ONE query, scoped to this user
+  const candidates = await db
+    .select()
+    .from(filesTable)
+    .where(and(eq(filesTable.userId, userId), inArray(filesTable.id, fileIds)));
+
+  const candidateById = new Map(candidates.map((f) => [f.id, f]));
 
   let updated = 0;
   let skipped = 0;
-  const scriptLines: string[] = ["#!/bin/bash", "# FileOrbit — Batch Rename Script", `# Generated: ${new Date().toISOString()}`, ""];
+  const scriptLines: string[] = [
+    "#!/bin/bash",
+    "# FileOrbit — Batch Rename Script",
+    `# Generated: ${new Date().toISOString()}`,
+    "set -euo pipefail",
+    "",
+  ];
+  const ensuredDirs = new Set<string>();
 
   for (const id of fileIds) {
-    const [file] = await db.select().from(filesTable).where(eq(filesTable.id, id));
+    const file = candidateById.get(id);
     if (!file || file.status === "organized") {
       skipped++;
       continue;
     }
 
     scriptLines.push(`# ${file.category}/${file.subCategory ?? "General"}`);
-    scriptLines.push(`mv "${file.currentName}" "${file.suggestedName}"`);
+    if (file.suggestedPath && !ensuredDirs.has(file.suggestedPath)) {
+      scriptLines.push(`mkdir -p "${file.suggestedPath}"`);
+      ensuredDirs.add(file.suggestedPath);
+    }
     if (file.suggestedPath) {
-      scriptLines.push(`mv "${file.suggestedName}" "${file.suggestedPath}/${file.suggestedName}"`);
+      scriptLines.push(`mv "${file.currentName}" "${file.suggestedPath}/${file.suggestedName}"`);
+    } else {
+      scriptLines.push(`mv "${file.currentName}" "${file.suggestedName}"`);
     }
     scriptLines.push("");
 
@@ -158,9 +190,10 @@ router.post("/files/bulk-rename", async (req, res): Promise<void> => {
       await db
         .update(filesTable)
         .set({ currentName: file.suggestedName, currentPath: file.suggestedPath, status: "organized" })
-        .where(eq(filesTable.id, id));
+        .where(and(eq(filesTable.id, id), eq(filesTable.userId, userId)));
 
       await db.insert(renameHistoryTable).values({
+        userId,
         fileId: file.id,
         fileOriginalName: file.originalName,
         action: "bulk_renamed",
@@ -182,6 +215,7 @@ router.post("/files/bulk-rename", async (req, res): Promise<void> => {
 });
 
 router.post("/files/scan", async (req, res): Promise<void> => {
+  const userId = getUserId(req);
   const parsed = ScanFilesBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -189,8 +223,15 @@ router.post("/files/scan", async (req, res): Promise<void> => {
   }
 
   const { filenames } = parsed.data;
+  if (filenames.length > 1000) {
+    res.status(400).json({ error: "Scan limited to 1000 filenames per request" });
+    return;
+  }
 
-  const existingFiles = await db.select({ currentName: filesTable.currentName }).from(filesTable);
+  const existingFiles = await db
+    .select({ currentName: filesTable.currentName })
+    .from(filesTable)
+    .where(eq(filesTable.userId, userId));
   const existingNames = existingFiles.map((f) => f.currentName);
 
   const results = filenames.map((filename: string) => {
@@ -218,13 +259,17 @@ router.post("/files/scan", async (req, res): Promise<void> => {
 });
 
 router.get("/files/:id", async (req, res): Promise<void> => {
+  const userId = getUserId(req);
   const params = GetFileParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
 
-  const [file] = await db.select().from(filesTable).where(eq(filesTable.id, params.data.id));
+  const [file] = await db
+    .select()
+    .from(filesTable)
+    .where(and(eq(filesTable.id, params.data.id), eq(filesTable.userId, userId)));
   if (!file) {
     res.status(404).json({ error: "File not found" });
     return;
@@ -234,6 +279,7 @@ router.get("/files/:id", async (req, res): Promise<void> => {
 });
 
 router.patch("/files/:id", async (req, res): Promise<void> => {
+  const userId = getUserId(req);
   const params = UpdateFileParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -246,7 +292,10 @@ router.patch("/files/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [before] = await db.select().from(filesTable).where(eq(filesTable.id, params.data.id));
+  const [before] = await db
+    .select()
+    .from(filesTable)
+    .where(and(eq(filesTable.id, params.data.id), eq(filesTable.userId, userId)));
   if (!before) {
     res.status(404).json({ error: "File not found" });
     return;
@@ -255,7 +304,7 @@ router.patch("/files/:id", async (req, res): Promise<void> => {
   const [file] = await db
     .update(filesTable)
     .set(parsed.data)
-    .where(eq(filesTable.id, params.data.id))
+    .where(and(eq(filesTable.id, params.data.id), eq(filesTable.userId, userId)))
     .returning();
 
   if (!file) {
@@ -273,6 +322,7 @@ router.patch("/files/:id", async (req, res): Promise<void> => {
       : "updated";
 
     await db.insert(renameHistoryTable).values({
+      userId,
       fileId: file.id,
       fileOriginalName: file.originalName,
       action,
@@ -287,13 +337,17 @@ router.patch("/files/:id", async (req, res): Promise<void> => {
 });
 
 router.delete("/files/:id", async (req, res): Promise<void> => {
+  const userId = getUserId(req);
   const params = DeleteFileParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
 
-  const [file] = await db.delete(filesTable).where(eq(filesTable.id, params.data.id)).returning();
+  const [file] = await db
+    .delete(filesTable)
+    .where(and(eq(filesTable.id, params.data.id), eq(filesTable.userId, userId)))
+    .returning();
   if (!file) {
     res.status(404).json({ error: "File not found" });
     return;

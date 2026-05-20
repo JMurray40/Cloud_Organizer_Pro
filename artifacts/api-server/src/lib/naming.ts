@@ -52,6 +52,13 @@ export function applyNamingConvention(
   return { suggestedName, suggestedPath, extension, explanation, confidence };
 }
 
+/**
+ * Extract a YYYY-MM-DD date from a filename, only when there is strong evidence.
+ *
+ * We intentionally do NOT fall back to "any 4-digit year" because filenames like
+ * "iPhone 2024 review.pdf" would otherwise produce a misleading 2024-01-01 date.
+ * A year alone, without any month/quarter signal, is treated as no date.
+ */
 function extractDateFromFilename(filename: string): string | null {
   const lower = filename.toLowerCase();
 
@@ -72,16 +79,11 @@ function extractDateFromFilename(filename: string): string | null {
   for (const [monthName, monthNum] of Object.entries(MONTHS)) {
     const re = new RegExp(`\\b(${monthName})\\s+(\\d{4})\\b`, "i");
     const m = lower.match(re);
-    if (m) {
-      const year = m[2];
-      return `${year}-${monthNum}-01`;
-    }
+    if (m) return `${m[2]}-${monthNum}-01`;
+
     const re2 = new RegExp(`\\b(\\d{4})\\s+${monthName}\\b`, "i");
     const m2 = lower.match(re2);
-    if (m2) {
-      const year = m2[1];
-      return `${year}-${monthNum}-01`;
-    }
+    if (m2) return `${m2[1]}-${monthNum}-01`;
   }
 
   const quarterMatch = lower.match(/\bq([1-4])\s*(\d{4})\b/) ?? lower.match(/\b(\d{4})\s*q([1-4])\b/);
@@ -92,9 +94,7 @@ function extractDateFromFilename(filename: string): string | null {
     return `${year}-${monthNum}-01`;
   }
 
-  const yearOnly = filename.match(/\b(20\d{2})\b/);
-  if (yearOnly) return `${yearOnly[1]}-01-01`;
-
+  // Deliberate: no year-only fallback (too noisy).
   return null;
 }
 
@@ -105,11 +105,6 @@ function resolveVersion(
   existingNames?: string[]
 ): string {
   if (!existingNames || existingNames.length === 0) return "v1";
-
-  const prefix = [category, subCategory, description]
-    .filter(Boolean)
-    .join("_")
-    .toLowerCase();
 
   let maxVersion = 0;
   for (const name of existingNames) {
@@ -161,8 +156,14 @@ function computeConfidence(
   return Math.min(100, Math.max(10, score));
 }
 
+/**
+ * Reduce a raw base name (filename minus extension) to a kebab-case description.
+ * Empty/garbage input → empty string (caller decides what to do — we no longer
+ * collapse everything to "untitled" because that caused unrelated files to
+ * collide in the duplicate-detection grouping.)
+ */
 function sanitizeDescription(raw: string): string {
-  return raw
+  const cleaned = raw
     .replace(/\(\d+\)$/, "")
     .replace(/- copy$/i, "")
     .replace(/copy of /i, "")
@@ -170,8 +171,15 @@ function sanitizeDescription(raw: string): string {
     .trim()
     .replace(/\s+/g, "-")
     .replace(/_v\d+$/i, "")
-    .slice(0, 50)
-    || "untitled";
+    .slice(0, 50);
+
+  // Fall back to a stable hash-ish slug derived from the raw input to keep
+  // empty descriptions UNIQUE between unrelated files.
+  if (!cleaned) {
+    const fp = Array.from(raw).reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0);
+    return `file-${(fp >>> 0).toString(36).slice(0, 6)}`;
+  }
+  return cleaned;
 }
 
 function extractVersion(raw: string): string | null {

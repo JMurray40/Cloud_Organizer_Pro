@@ -85,8 +85,13 @@ export default function Dashboard() {
   const { data: trend } = useGetOrgTrend();
   const recordSnapshot = useRecordOrgSnapshot();
 
-  // Record today's snapshot silently on page load
+  // Record today's snapshot at most once per browser-session — the server-side
+  // upsert is idempotent, but we don't need to hit the DB on every nav.
   useEffect(() => {
+    const KEY = "fileorbit-snapshot-day";
+    const today = new Date().toISOString().split("T")[0];
+    if (sessionStorage.getItem(KEY) === today) return;
+    sessionStorage.setItem(KEY, today);
     recordSnapshot.mutate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
