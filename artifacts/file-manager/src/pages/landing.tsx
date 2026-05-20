@@ -1,5 +1,6 @@
 import { Link } from "wouter";
-import { FolderOpen, CheckCircle, Copy, Cloud, ArrowRight, Zap } from "lucide-react";
+import { FolderOpen, CheckCircle, Copy, Cloud, ArrowRight, Zap, Moon, Sun } from "lucide-react";
+import { useDarkMode } from "@/hooks/use-dark-mode";
 
 const features = [
   {
@@ -27,6 +28,8 @@ const features = [
 const today = new Date().toISOString().split("T")[0];
 
 export default function LandingPage() {
+  const [dark, setDark] = useDarkMode();
+
   return (
     <div className="min-h-[100dvh] bg-background flex flex-col">
       {/* Nav */}
@@ -37,10 +40,17 @@ export default function LandingPage() {
           </div>
           <span className="text-sm font-semibold text-foreground">FileOrbit</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setDark((d) => !d)}
+            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            title={dark ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
           <Link
             href="/sign-in"
-            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors px-3 py-2"
           >
             Sign in
           </Link>

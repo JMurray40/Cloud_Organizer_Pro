@@ -7,6 +7,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useGetDashboardStats } from "@workspace/api-client-react";
 import { useUser, useClerk } from "@clerk/react";
+import { useDarkMode } from "@/hooks/use-dark-mode";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -19,28 +20,6 @@ const navItems = [
   { href: "/accounts", label: "Cloud Accounts", icon: Cloud },
   { href: "/convention", label: "Convention Guide", icon: FolderOpen },
 ];
-
-function useDarkMode() {
-  const [dark, setDark] = useState(() => {
-    if (typeof document === "undefined") return false;
-    const saved = localStorage.getItem("fileorbit-theme");
-    if (saved === "dark") return true;
-    if (saved === "light") return false;
-    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
-  });
-
-  useEffect(() => {
-    if (dark) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("fileorbit-theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("fileorbit-theme", "light");
-    }
-  }, [dark]);
-
-  return [dark, setDark] as const;
-}
 
 type SidebarProps = {
   location: string;
