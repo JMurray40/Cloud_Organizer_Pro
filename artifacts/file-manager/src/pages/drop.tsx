@@ -1,8 +1,9 @@
 import { useState, useCallback } from "react";
-import { useSuggestFileName, useCreateFile, getListFilesQueryKey } from "@workspace/api-client-react";
+import { useSuggestFileName, useCreateFile, useListCloudAccounts, getListFilesQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Upload, FolderOpen, CheckCircle2, X } from "lucide-react";
+import { Upload, FolderOpen, CheckCircle2, X, HardDrive } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -22,10 +23,12 @@ type DroppedFile = {
 export default function DropPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState<DroppedFile[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState("_none");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const suggestName = useSuggestFileName();
   const createFile = useCreateFile();
+  const { data: accounts } = useListCloudAccounts();
 
   const processFiles = useCallback(async (fileList: FileList) => {
     const newFiles: DroppedFile[] = Array.from(fileList).map((f) => ({
@@ -84,6 +87,7 @@ export default function DropPage() {
 
   const handleAccept = (file: DroppedFile) => {
     if (!file.suggestion) return;
+    const accountId = selectedAccountId !== "_none" ? parseInt(selectedAccountId) : undefined;
     createFile.mutate(
       {
         data: {
@@ -91,6 +95,7 @@ export default function DropPage() {
           category: file.suggestion.category,
           subCategory: file.suggestion.subCategory ?? undefined,
           fileSize: file.size,
+          ...(accountId != null ? { cloudAccountId: accountId } : {}),
         },
       },
       {
@@ -115,12 +120,44 @@ export default function DropPage() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const activeAccounts = accounts?.filter((a) => a.isActive) ?? [];
+
   return (
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground" data-testid="page-title-drop">Drop Zone</h1>
         <p className="text-sm text-muted-foreground mt-1">Drop files here to instantly get naming suggestions</p>
       </div>
+
+      {/* Account selector */}
+      {activeAccounts.length > 0 && (
+        <div className="bg-card border border-card-border rounded-xl p-4">
+          <label className="text-sm font-medium text-foreground block mb-2">
+            Which account are these files from?
+          </label>
+          <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+            <SelectTrigger className="w-72" data-testid="select-drop-account">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="_none">
+                <span className="flex items-center gap-2">
+                  <HardDrive className="w-3.5 h-3.5 text-muted-foreground" />
+                  Not assigned to an account
+                </span>
+              </SelectItem>
+              {activeAccounts.map((a) => (
+                <SelectItem key={a.id} value={String(a.id)}>
+                  {a.name} <span className="text-muted-foreground ml-1">({a.accountLabel})</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground mt-1.5">
+            Assigning an account makes it easy to filter and manage files per storage service.
+          </p>
+        </div>
+      )}
 
       <div
         data-testid="drop-zone"

@@ -1,10 +1,11 @@
 import { useState, useMemo } from "react";
-import { useListFiles, useUpdateFile, useDeleteFile, getListFilesQueryKey, getGetDashboardStatsQueryKey } from "@workspace/api-client-react";
+import { useListFiles, useUpdateFile, useDeleteFile, useListCloudAccounts, getListFilesQueryKey, getGetDashboardStatsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Trash2, CheckCircle2, MinusCircle, Copy, Play, Download, Square, SquareCheck, ArrowUpDown, ArrowUp, ArrowDown, FileDown, FolderOpen } from "lucide-react";
+import { Search, Trash2, CheckCircle2, MinusCircle, Copy, Play, Download, Square, SquareCheck, ArrowUpDown, ArrowUp, ArrowDown, FileDown, FolderOpen, MoveRight, HardDrive } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -26,6 +27,11 @@ export default function FilesPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
   const [status, setStatus] = useState("");
+  const [accountFilter, setAccountFilter] = useState(() => {
+    const p = new URLSearchParams(window.location.search);
+    return p.get("account") ?? "_all";
+  });
+  const [moveDialog, setMoveDialog] = useState<{ fileId: number; fileName: string } | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
   const [sortField, setSortField] = useState<"originalName" | "category" | "status" | "createdAt">("createdAt");
@@ -36,10 +42,21 @@ export default function FilesPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const { data: accounts } = useListCloudAccounts();
+  const accountMap = useMemo(
+    () => new Map((accounts ?? []).map((a) => [a.id, a])),
+    [accounts]
+  );
+
   const params = {
     ...(search ? { search } : {}),
     ...(category && category !== "_all" ? { category } : {}),
     ...(status && status !== "_all" ? { status } : {}),
+    ...(accountFilter === "_unassigned"
+      ? { cloudAccountId: null as unknown as number }
+      : accountFilter && accountFilter !== "_all"
+      ? { cloudAccountId: parseInt(accountFilter) }
+      : {}),
   };
 
   const { data: files, isLoading } = useListFiles(Object.keys(params).length ? params : undefined);
@@ -102,6 +119,20 @@ export default function FilesPage() {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: getListFilesQueryKey() });
     queryClient.invalidateQueries({ queryKey: getGetDashboardStatsQueryKey() });
+  };
+
+  const handleMoveToAccount = (fileId: number, newAccountId: number | null) => {
+    updateFile.mutate(
+      { id: fileId, data: { cloudAccountId: newAccountId } },
+      {
+        onSuccess: () => {
+          invalidate();
+          setMoveDialog(null);
+          const accountName = newAccountId ? (accountMap.get(newAccountId)?.name ?? "account") : "unassigned";
+          toast({ title: "File moved", description: `Now linked to ${accountName}` });
+        },
+      }
+    );
   };
 
   const handleStatusChange = (id: number, newStatus: string) => {
@@ -287,10 +318,24 @@ export default function FilesPage() {
             ))}
           </SelectContent>
         </Select>
+        {accounts && accounts.length > 0 && (
+          <Select value={accountFilter} onValueChange={(v) => { setAccountFilter(v); setPage(1); }}>
+            <SelectTrigger className="w-44" data-testid="select-account-filter">
+              <SelectValue placeholder="Account" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="_all">All Accounts</SelectItem>
+              <SelectItem value="_unassigned">Unassigned</SelectItem>
+              {accounts.map((a) => (
+                <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       <div className="bg-card border border-card-border rounded-lg overflow-hidden">
-        <div className="grid grid-cols-[32px_1fr_1fr_110px_120px_90px_100px] text-xs font-semibold text-muted-foreground bg-muted/40 px-4 py-2.5 border-b border-border">
+        <div className="grid grid-cols-[32px_1fr_1fr_100px_110px_90px_110px_90px] text-xs font-semibold text-muted-foreground bg-muted/40 px-4 py-2.5 border-b border-border">
           <button
             onClick={toggleSelectAll}
             title={allPendingSelected ? "Deselect all" : "Select all pending"}
@@ -309,6 +354,7 @@ export default function FilesPage() {
           <button onClick={() => toggleSort("status")} className="flex items-center hover:text-foreground text-left">
             Status <SortIcon field="status" />
           </button>
+          <span>Account</span>
           <span>Actions</span>
         </div>
         {isLoading ? (
@@ -321,7 +367,7 @@ export default function FilesPage() {
                 key={file.id}
                 data-testid={`row-file-${file.id}`}
                 className={cn(
-                  "grid grid-cols-[32px_1fr_1fr_110px_120px_90px_100px] items-center px-4 py-3 border-b border-border last:border-0 hover:bg-muted/30 transition-colors",
+                  "grid grid-cols-[32px_1fr_1fr_100px_110px_90px_110px_90px] items-center px-4 py-3 border-b border-border last:border-0 hover:bg-muted/30 transition-colors",
                   isSelected && "bg-primary/5"
                 )}
               >
@@ -369,7 +415,26 @@ export default function FilesPage() {
                     {file.status}
                   </span>
                 </div>
+                <div className="min-w-0">
+                  {file.cloudAccountId != null ? (
+                    <span className="text-xs text-foreground truncate block">
+                      {accountMap.get(file.cloudAccountId)?.name ?? `Account #${file.cloudAccountId}`}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground/60 italic">Unassigned</span>
+                  )}
+                </div>
                 <div className="flex items-center gap-1">
+                  {accounts && accounts.length > 0 && (
+                    <button
+                      data-testid={`button-move-${file.id}`}
+                      onClick={() => setMoveDialog({ fileId: file.id, fileName: file.originalName })}
+                      className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-primary transition-colors"
+                      title="Move to account"
+                    >
+                      <MoveRight className="w-4 h-4" />
+                    </button>
+                  )}
                   {file.status !== "organized" && (
                     <button
                       data-testid={`button-organize-${file.id}`}
@@ -454,6 +519,56 @@ export default function FilesPage() {
           </div>
         )}
       </div>
+
+      {/* Move to account dialog */}
+      <Dialog open={moveDialog != null} onOpenChange={(v) => { if (!v) setMoveDialog(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MoveRight className="w-4 h-4 text-primary" />
+              Move to account
+            </DialogTitle>
+            {moveDialog && (
+              <p className="text-xs text-muted-foreground truncate pt-1">
+                {moveDialog.fileName}
+              </p>
+            )}
+          </DialogHeader>
+          <div className="space-y-2 py-1">
+            <button
+              onClick={() => moveDialog && handleMoveToAccount(moveDialog.fileId, null)}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border hover:bg-muted/60 transition-colors text-left"
+            >
+              <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                <HardDrive className="w-4 h-4 text-muted-foreground" />
+              </div>
+              <span className="text-sm text-muted-foreground italic">Unassigned</span>
+            </button>
+            {(accounts ?? []).map((a) => (
+              <button
+                key={a.id}
+                onClick={() => moveDialog && handleMoveToAccount(moveDialog.fileId, a.id)}
+                disabled={!a.isActive}
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-colors text-left",
+                  a.isActive
+                    ? "border-border hover:border-primary/30 hover:bg-primary/5"
+                    : "border-border opacity-50 cursor-not-allowed"
+                )}
+              >
+                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                  <HardDrive className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-foreground">{a.name}</div>
+                  <div className="text-xs text-muted-foreground truncate">{a.accountLabel}</div>
+                </div>
+                {!a.isActive && <span className="text-xs text-muted-foreground">Inactive</span>}
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
