@@ -290,6 +290,15 @@ export interface CategoryCount {
   count: number;
 }
 
+export interface OrgScoreSnapshot {
+  id: number;
+  date: string;
+  score: number;
+  totalFiles: number;
+  organizedFiles: number;
+  renamedFiles: number;
+}
+
 export type ListFilesParams = {
   category?: string;
   status?: string;

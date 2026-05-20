@@ -28,6 +28,7 @@ export * from "./nameSuggestion";
 export * from "./namingRule";
 export * from "./oAuthCallbackBody";
 export * from "./oAuthConnectResponse";
+export * from "./orgScoreSnapshot";
 export * from "./placementRecommendation";
 export * from "./scanFilesBody";
 export * from "./scanResult";

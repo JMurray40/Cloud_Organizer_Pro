@@ -1,7 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db, filesTable, cloudAccountsTable, namingRulesTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
-import { desc } from "drizzle-orm";
+import { db, filesTable, cloudAccountsTable, namingRulesTable, orgScoreSnapshotsTable } from "@workspace/db";
+import { eq, sql, desc, gte } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -76,6 +75,47 @@ router.get("/stats/recent-activity", async (_req, res): Promise<void> => {
     .limit(10);
 
   res.json(recent);
+});
+
+router.get("/stats/org-trend", async (_req, res): Promise<void> => {
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const cutoff = thirtyDaysAgo.toISOString().split("T")[0];
+
+  const snapshots = await db
+    .select()
+    .from(orgScoreSnapshotsTable)
+    .where(gte(orgScoreSnapshotsTable.date, cutoff))
+    .orderBy(orgScoreSnapshotsTable.date);
+
+  res.json(snapshots);
+});
+
+router.post("/stats/org-trend/record", async (_req, res): Promise<void> => {
+  const [filesStats] = await db
+    .select({
+      total: sql<number>`count(*)::int`,
+      organized: sql<number>`count(*) filter (where status = 'organized')::int`,
+      renamed: sql<number>`count(*) filter (where status = 'renamed')::int`,
+    })
+    .from(filesTable);
+
+  const total = filesStats?.total ?? 0;
+  const organized = filesStats?.organized ?? 0;
+  const renamed = filesStats?.renamed ?? 0;
+  const score = total > 0 ? Math.round(((organized + renamed) / total) * 100) : 0;
+  const today = new Date().toISOString().split("T")[0];
+
+  const [snapshot] = await db
+    .insert(orgScoreSnapshotsTable)
+    .values({ date: today, score, totalFiles: total, organizedFiles: organized, renamedFiles: renamed })
+    .onConflictDoUpdate({
+      target: orgScoreSnapshotsTable.date,
+      set: { score, totalFiles: total, organizedFiles: organized, renamedFiles: renamed },
+    })
+    .returning();
+
+  res.json(snapshot);
 });
 
 export default router;

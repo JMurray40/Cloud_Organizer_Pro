@@ -37,6 +37,7 @@ import type {
   NamingRule,
   OAuthCallbackBody,
   OAuthConnectResponse,
+  OrgScoreSnapshot,
   PlacementRecommendation,
   ScanFilesBody,
   ScanResult,
@@ -2322,3 +2323,159 @@ export function useGetRecentActivity<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Organization score trend over the past 30 days
+ */
+export const getGetOrgTrendUrl = () => {
+  return `/api/stats/org-trend`;
+};
+
+export const getOrgTrend = async (
+  options?: RequestInit,
+): Promise<OrgScoreSnapshot[]> => {
+  return customFetch<OrgScoreSnapshot[]>(getGetOrgTrendUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetOrgTrendQueryKey = () => {
+  return [`/api/stats/org-trend`] as const;
+};
+
+export const getGetOrgTrendQueryOptions = <
+  TData = Awaited<ReturnType<typeof getOrgTrend>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getOrgTrend>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetOrgTrendQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getOrgTrend>>> = ({
+    signal,
+  }) => getOrgTrend({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getOrgTrend>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetOrgTrendQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getOrgTrend>>
+>;
+export type GetOrgTrendQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Organization score trend over the past 30 days
+ */
+
+export function useGetOrgTrend<
+  TData = Awaited<ReturnType<typeof getOrgTrend>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getOrgTrend>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetOrgTrendQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Record today's organization score snapshot
+ */
+export const getRecordOrgSnapshotUrl = () => {
+  return `/api/stats/org-trend/record`;
+};
+
+export const recordOrgSnapshot = async (
+  options?: RequestInit,
+): Promise<OrgScoreSnapshot> => {
+  return customFetch<OrgScoreSnapshot>(getRecordOrgSnapshotUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getRecordOrgSnapshotMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof recordOrgSnapshot>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof recordOrgSnapshot>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["recordOrgSnapshot"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof recordOrgSnapshot>>,
+    void
+  > = () => {
+    return recordOrgSnapshot(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RecordOrgSnapshotMutationResult = NonNullable<
+  Awaited<ReturnType<typeof recordOrgSnapshot>>
+>;
+
+export type RecordOrgSnapshotMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Record today's organization score snapshot
+ */
+export const useRecordOrgSnapshot = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof recordOrgSnapshot>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof recordOrgSnapshot>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getRecordOrgSnapshotMutationOptions(options));
+};

@@ -230,6 +230,32 @@ export default function FilesPage() {
         )}
       </div>
 
+      {/* Quick filter presets */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {(
+          [
+            { label: "All", s: "", c: "" },
+            { label: "Pending", s: "pending", c: "" },
+            { label: "Organized", s: "organized", c: "" },
+            { label: "Duplicates", s: "duplicate", c: "" },
+            { label: "Ignored", s: "ignored", c: "" },
+          ] as { label: string; s: string; c: string }[]
+        ).map(({ label, s, c }) => (
+          <button
+            key={label}
+            onClick={() => { setStatus(s); setCategory(c); setPage(1); }}
+            className={cn(
+              "px-3 py-1 text-xs rounded-full border font-medium transition-colors",
+              status === s && (c === "" || category === c)
+                ? "bg-primary text-primary-foreground border-primary"
+                : "border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div className="flex gap-3 flex-wrap">
         <div className="relative flex-1 min-w-48">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

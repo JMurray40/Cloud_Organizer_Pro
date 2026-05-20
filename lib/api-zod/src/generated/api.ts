@@ -524,3 +524,28 @@ export const GetRecentActivityResponseItem = zod.object({
 export const GetRecentActivityResponse = zod.array(
   GetRecentActivityResponseItem,
 );
+
+/**
+ * @summary Organization score trend over the past 30 days
+ */
+export const GetOrgTrendResponseItem = zod.object({
+  id: zod.number(),
+  date: zod.string(),
+  score: zod.number(),
+  totalFiles: zod.number(),
+  organizedFiles: zod.number(),
+  renamedFiles: zod.number(),
+});
+export const GetOrgTrendResponse = zod.array(GetOrgTrendResponseItem);
+
+/**
+ * @summary Record today's organization score snapshot
+ */
+export const RecordOrgSnapshotResponse = zod.object({
+  id: zod.number(),
+  date: zod.string(),
+  score: zod.number(),
+  totalFiles: zod.number(),
+  organizedFiles: zod.number(),
+  renamedFiles: zod.number(),
+});
