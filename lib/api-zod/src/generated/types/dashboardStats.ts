@@ -5,12 +5,16 @@
  * Smart File Manager API
  * OpenAPI spec version: 0.1.0
  */
+import type { FileTypeCount } from "./fileTypeCount";
 
 export interface DashboardStats {
   totalFiles: number;
   pendingFiles: number;
   organizedFiles: number;
+  renamedFiles: number;
   duplicatesFound: number;
   cloudAccounts: number;
   activeRules: number;
+  fileTypeBreakdown: FileTypeCount[];
+  duplicateSavingsBytes: number;
 }

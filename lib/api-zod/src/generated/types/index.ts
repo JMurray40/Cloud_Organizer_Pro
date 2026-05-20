@@ -18,6 +18,7 @@ export * from "./createRuleBody";
 export * from "./dashboardStats";
 export * from "./duplicateGroup";
 export * from "./fileRecord";
+export * from "./fileTypeCount";
 export * from "./getPlacementRecommendationParams";
 export * from "./healthStatus";
 export * from "./historyEntry";

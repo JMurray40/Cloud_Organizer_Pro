@@ -268,13 +268,21 @@ export interface OAuthCallbackBody {
   simulatedQuotaUsedGb?: number;
 }
 
+export interface FileTypeCount {
+  ext: string;
+  count: number;
+}
+
 export interface DashboardStats {
   totalFiles: number;
   pendingFiles: number;
   organizedFiles: number;
+  renamedFiles: number;
   duplicatesFound: number;
   cloudAccounts: number;
   activeRules: number;
+  fileTypeBreakdown: FileTypeCount[];
+  duplicateSavingsBytes: number;
 }
 
 export interface CategoryCount {

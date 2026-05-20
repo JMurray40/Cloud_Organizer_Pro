@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useScanFiles, useCreateFile, getListFilesQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { AlertTriangle, CheckCircle2, FolderOpen, Scan } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FolderOpen, Scan, FileUp, X } from "lucide-react";
 
 type ScanResultItem = {
   originalName: string;
@@ -20,8 +20,37 @@ export default function ScanPage() {
   const [input, setInput] = useState("");
   const [results, setResults] = useState<ScanResultItem[]>([]);
   const [accepted, setAccepted] = useState<Set<number>>(new Set());
+  const [csvFileName, setCsvFileName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const handleCsvImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      const filenames: string[] = [];
+      for (const line of lines) {
+        const cols = line.split(",");
+        const candidate = cols[0].replace(/^["']|["']$/g, "").trim();
+        if (candidate && /\.\w{1,10}$/.test(candidate)) {
+          filenames.push(candidate);
+        }
+      }
+      if (filenames.length === 0) {
+        toast({ title: "No filenames found", description: "CSV must have filenames with extensions in the first column.", variant: "destructive" });
+        return;
+      }
+      setInput(filenames.join("\n"));
+      setCsvFileName(file.name);
+      toast({ title: `Imported ${filenames.length} filenames`, description: `From ${file.name}` });
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
 
   const scanFiles = useScanFiles();
   const createFile = useCreateFile();
@@ -97,16 +126,47 @@ export default function ScanPage() {
 
       <div className="bg-card border border-card-border rounded-lg p-5 space-y-4">
         <div>
-          <label className="text-sm font-medium text-foreground mb-1.5 block">Filenames to scan</label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-sm font-medium text-foreground">Filenames to scan</label>
+            <div className="flex items-center gap-2">
+              {csvFileName && (
+                <div className="flex items-center gap-1.5 text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
+                  <span>{csvFileName}</span>
+                  <button onClick={() => { setInput(""); setCsvFileName(null); }} className="hover:text-primary/60">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-1.5 h-7 text-xs"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <FileUp className="w-3.5 h-3.5" />
+                Import CSV
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={handleCsvImport}
+              />
+            </div>
+          </div>
           <Textarea
             data-testid="textarea-filenames"
             placeholder={"Q1 Sales Report.pdf\namazon receipt march 2024.pdf\nHawaii Vacation Photos.zip\ncontract acme corp.docx"}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => { setInput(e.target.value); setCsvFileName(null); }}
             rows={8}
             className="font-mono text-sm resize-none"
           />
-          <p className="text-xs text-muted-foreground mt-1.5">One filename per line. Include the file extension.</p>
+          <p className="text-xs text-muted-foreground mt-1.5">
+            One filename per line — or import a CSV file with filenames in the first column.
+          </p>
         </div>
         <div className="flex justify-between items-center">
           <Button

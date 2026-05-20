@@ -1043,19 +1043,30 @@ components:
           type: integer
         organizedFiles:
           type: integer
+        renamedFiles:
+          type: integer
         duplicatesFound:
           type: integer
         cloudAccounts:
           type: integer
         activeRules:
           type: integer
+        fileTypeBreakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/FileTypeCount"
+        duplicateSavingsBytes:
+          type: number
       required:
         - totalFiles
         - pendingFiles
         - organizedFiles
+        - renamedFiles
         - duplicatesFound
         - cloudAccounts
         - activeRules
+        - fileTypeBreakdown
+        - duplicateSavingsBytes
 
     CategoryCount:
       type: object
@@ -1066,4 +1077,15 @@ components:
           type: integer
       required:
         - category
+        - count
+
+    FileTypeCount:
+      type: object
+      properties:
+        ext:
+          type: string
+        count:
+          type: integer
+      required:
+        - ext
         - count

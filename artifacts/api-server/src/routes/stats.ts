@@ -11,6 +11,7 @@ router.get("/stats/dashboard", async (_req, res): Promise<void> => {
       total: sql<number>`count(*)::int`,
       pending: sql<number>`count(*) filter (where status = 'pending')::int`,
       organized: sql<number>`count(*) filter (where status = 'organized')::int`,
+      renamed: sql<number>`count(*) filter (where status = 'renamed')::int`,
       duplicates: sql<number>`count(*) filter (where is_duplicate = true)::int`,
     })
     .from(filesTable);
@@ -25,13 +26,32 @@ router.get("/stats/dashboard", async (_req, res): Promise<void> => {
     .from(namingRulesTable)
     .where(eq(namingRulesTable.isActive, true));
 
+  const fileTypeRows = await db
+    .select({
+      ext: filesTable.fileExtension,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(filesTable)
+    .groupBy(filesTable.fileExtension)
+    .orderBy(sql`count(*) desc`)
+    .limit(8);
+
+  const [sizeSavings] = await db
+    .select({
+      totalDupBytes: sql<number>`coalesce(sum(file_size) filter (where is_duplicate = true), 0)::bigint`,
+    })
+    .from(filesTable);
+
   res.json({
     totalFiles: filesStats?.total ?? 0,
     pendingFiles: filesStats?.pending ?? 0,
     organizedFiles: filesStats?.organized ?? 0,
+    renamedFiles: filesStats?.renamed ?? 0,
     duplicatesFound: filesStats?.duplicates ?? 0,
     cloudAccounts: accountsStats?.count ?? 0,
     activeRules: rulesStats?.count ?? 0,
+    fileTypeBreakdown: fileTypeRows.map((r) => ({ ext: r.ext, count: r.count })),
+    duplicateSavingsBytes: Number(sizeSavings?.totalDupBytes ?? 0),
   });
 });
 

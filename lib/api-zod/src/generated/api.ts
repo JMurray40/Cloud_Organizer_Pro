@@ -474,9 +474,17 @@ export const GetDashboardStatsResponse = zod.object({
   totalFiles: zod.number(),
   pendingFiles: zod.number(),
   organizedFiles: zod.number(),
+  renamedFiles: zod.number(),
   duplicatesFound: zod.number(),
   cloudAccounts: zod.number(),
   activeRules: zod.number(),
+  fileTypeBreakdown: zod.array(
+    zod.object({
+      ext: zod.string(),
+      count: zod.number(),
+    }),
+  ),
+  duplicateSavingsBytes: zod.number(),
 });
 
 /**

@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useListFiles, useUpdateFile, useDeleteFile, getListFilesQueryKey, getGetDashboardStatsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Trash2, CheckCircle2, MinusCircle, Copy, Play, Download, Square, SquareCheck, ArrowUpDown, ArrowUp, ArrowDown, FileDown } from "lucide-react";
+import { Search, Trash2, CheckCircle2, MinusCircle, Copy, Play, Download, Square, SquareCheck, ArrowUpDown, ArrowUp, ArrowDown, FileDown, FolderOpen } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -30,6 +30,8 @@ export default function FilesPage() {
   const [bulkLoading, setBulkLoading] = useState(false);
   const [sortField, setSortField] = useState<"originalName" | "category" | "status" | "createdAt">("createdAt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 25;
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -58,9 +60,13 @@ export default function FilesPage() {
   }, [files, sortField, sortDir]);
 
   const toggleSort = (field: typeof sortField) => {
+    setPage(1);
     if (sortField === field) setSortDir((d) => d === "asc" ? "desc" : "asc");
     else { setSortField(field); setSortDir("asc"); }
   };
+
+  const totalPages = Math.max(1, Math.ceil(sortedFiles.length / PAGE_SIZE));
+  const pagedFiles = sortedFiles.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const SortIcon = ({ field }: { field: typeof sortField }) => {
     if (sortField !== field) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-40" />;
@@ -281,8 +287,8 @@ export default function FilesPage() {
         </div>
         {isLoading ? (
           <div className="py-12 text-center text-muted-foreground text-sm">Loading files...</div>
-        ) : sortedFiles.length > 0 ? (
-          sortedFiles.map((file) => {
+        ) : pagedFiles.length > 0 ? (
+          pagedFiles.map((file) => {
             const isSelected = selected.has(file.id);
             return (
               <div
@@ -371,8 +377,54 @@ export default function FilesPage() {
             );
           })
         ) : (
-          <div className="py-12 text-center text-muted-foreground text-sm">
-            No files found. Use Scan or Drop Zone to add files.
+          <div className="py-16 flex flex-col items-center gap-3 text-center">
+            <FolderOpen className="w-10 h-10 text-muted-foreground/40" />
+            <div className="text-sm font-medium text-foreground">No files found</div>
+            <div className="text-xs text-muted-foreground max-w-xs">
+              {search || category || status
+                ? "Try adjusting your search or filters."
+                : "Use the Scan page to analyse existing filenames, or drag files into the Drop Zone."}
+            </div>
+          </div>
+        )}
+
+        {sortedFiles.length > PAGE_SIZE && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-muted/20">
+            <span className="text-xs text-muted-foreground">
+              Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sortedFiles.length)} of {sortedFiles.length} files
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage(1)}
+                disabled={page === 1}
+                className="px-2 py-1 text-xs rounded border border-border disabled:opacity-40 hover:bg-muted transition-colors"
+              >«</button>
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-2 py-1 text-xs rounded border border-border disabled:opacity-40 hover:bg-muted transition-colors"
+              >‹ Prev</button>
+              {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                const pg = totalPages <= 7 ? i + 1 : page <= 4 ? i + 1 : page >= totalPages - 3 ? totalPages - 6 + i : page - 3 + i;
+                return (
+                  <button
+                    key={pg}
+                    onClick={() => setPage(pg)}
+                    className={`px-2.5 py-1 text-xs rounded border transition-colors ${pg === page ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}
+                  >{pg}</button>
+                );
+              })}
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="px-2 py-1 text-xs rounded border border-border disabled:opacity-40 hover:bg-muted transition-colors"
+              >Next ›</button>
+              <button
+                onClick={() => setPage(totalPages)}
+                disabled={page === totalPages}
+                className="px-2 py-1 text-xs rounded border border-border disabled:opacity-40 hover:bg-muted transition-colors"
+              >»</button>
+            </div>
           </div>
         )}
       </div>
