@@ -2,10 +2,11 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Files, Search, Upload, BookOpen, Cloud, FolderOpen,
-  Copy, History, Moon, Sun, Menu, X,
+  Copy, History, Moon, Sun, Menu, X, LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGetDashboardStats } from "@workspace/api-client-react";
+import { useUser, useClerk } from "@clerk/react";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -54,8 +55,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [dark, setDark] = useDarkMode();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { data: stats } = useGetDashboardStats();
+  const { user } = useUser();
+  const { signOut } = useClerk();
 
-  // Close mobile sidebar on route change
   useEffect(() => {
     setMobileOpen(false);
   }, [location]);
@@ -64,6 +66,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     "/files": stats?.pendingFiles && stats.pendingFiles > 0 ? stats.pendingFiles : undefined,
     "/duplicates": stats?.duplicatesFound && stats.duplicatesFound > 0 ? stats.duplicatesFound : undefined,
   };
+
+  const userInitials = user
+    ? (user.firstName?.[0] ?? "") + (user.lastName?.[0] ?? user.emailAddresses?.[0]?.emailAddress?.[0] ?? "")
+    : "?";
+  const displayName = user?.firstName
+    ? `${user.firstName} ${user.lastName ?? ""}`.trim()
+    : user?.emailAddresses?.[0]?.emailAddress ?? "";
 
   const Sidebar = () => (
     <aside className="w-60 shrink-0 border-r border-sidebar-border bg-sidebar flex flex-col h-full">
@@ -117,7 +126,26 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         })}
       </nav>
 
-      <div className="p-3 border-t border-sidebar-border space-y-2">
+      <div className="p-3 border-t border-sidebar-border space-y-1">
+        {/* User info + sign out */}
+        {user && (
+          <div className="flex items-center gap-2.5 px-3 py-2 mb-1">
+            <div className="w-7 h-7 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-bold shrink-0 uppercase">
+              {userInitials}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-medium text-sidebar-foreground truncate">{displayName}</div>
+            </div>
+            <button
+              onClick={() => signOut({ redirectUrl: "/" })}
+              title="Sign out"
+              className="p-1 rounded hover:bg-sidebar-accent transition-colors text-muted-foreground hover:text-foreground"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         <button
           onClick={() => setDark(!dark)}
           className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
