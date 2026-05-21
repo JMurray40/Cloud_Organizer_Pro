@@ -229,6 +229,49 @@ async function getBoxInfo(accessToken: string): Promise<ProviderInfo> {
 }
 
 // ---------------------------------------------------------------------------
+// Amazon Photos (Login with Amazon — identity only)
+// Amazon Drive API has been closed to new third-party apps since 2019.
+// LWA gives us the user's real name and email; storage quota is not available.
+// ---------------------------------------------------------------------------
+
+async function exchangeAmazonCode(code: string, redirectUri: string): Promise<TokenResponse> {
+  const body = new URLSearchParams({
+    code,
+    client_id: process.env.AMAZON_CLIENT_ID!,
+    client_secret: process.env.AMAZON_CLIENT_SECRET!,
+    redirect_uri: redirectUri,
+    grant_type: "authorization_code",
+  });
+  const res = await fetch("https://api.amazon.com/auth/o2/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+  const data = (await res.json()) as TokenResponse;
+  if (!res.ok || data.error) {
+    throw new Error(data.error_description ?? data.error ?? `Amazon token exchange HTTP ${res.status}`);
+  }
+  return data;
+}
+
+async function getAmazonPhotosInfo(accessToken: string): Promise<ProviderInfo> {
+  const res = await fetch("https://api.amazon.com/user/profile", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) throw new Error(`Amazon /user/profile HTTP ${res.status}`);
+  const profile = await res.json() as { name: string; email: string; user_id: string };
+  return {
+    name: profile.name,
+    email: profile.email,
+    // Amazon Photos is unlimited for Prime members; the Drive quota API is
+    // not accessible to new apps — show no quota rather than a wrong number
+    quotaTotalGb: null,
+    quotaUsedGb: null,
+    rootPath: "/Amazon Photos",
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Provider dispatch table
 // ---------------------------------------------------------------------------
 
@@ -236,10 +279,11 @@ type ExchangeFn = (code: string, redirectUri: string) => Promise<TokenResponse>;
 type InfoFn = (accessToken: string) => Promise<ProviderInfo>;
 
 const HANDLERS: Record<string, { exchange: ExchangeFn; info: InfoFn }> = {
-  google_drive: { exchange: exchangeGoogleCode, info: getGoogleDriveInfo },
-  dropbox:      { exchange: exchangeDropboxCode, info: getDropboxInfo },
-  onedrive:     { exchange: exchangeOneDriveCode, info: getOneDriveInfo },
-  box:          { exchange: exchangeBoxCode, info: getBoxInfo },
+  google_drive:   { exchange: exchangeGoogleCode,  info: getGoogleDriveInfo },
+  dropbox:        { exchange: exchangeDropboxCode, info: getDropboxInfo },
+  onedrive:       { exchange: exchangeOneDriveCode, info: getOneDriveInfo },
+  box:            { exchange: exchangeBoxCode, info: getBoxInfo },
+  amazon_photos:  { exchange: exchangeAmazonCode, info: getAmazonPhotosInfo },
 };
 
 // ---------------------------------------------------------------------------

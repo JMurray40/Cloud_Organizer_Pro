@@ -40,6 +40,8 @@ const PROVIDERS: Record<string, ProviderMeta> = {
       "email",
       "profile",
     ],
+    // Google requires these to issue a refresh token on every consent
+    extraAuthParams: { access_type: "offline", prompt: "consent" },
     clientId: () => process.env.GOOGLE_CLIENT_ID,
     clientSecret: () => process.env.GOOGLE_CLIENT_SECRET,
   },
@@ -90,6 +92,20 @@ const PROVIDERS: Record<string, ProviderMeta> = {
     clientId: () => process.env.BOX_CLIENT_ID,
     clientSecret: () => process.env.BOX_CLIENT_SECRET,
   },
+  amazon_photos: {
+    label: "Amazon Photos",
+    // Amazon Photos is unlimited for Prime members — quota not tracked
+    defaultQuotaGb: 0,
+    defaultUsedGb: 0,
+    rootPath: "/Amazon Photos",
+    authUrl: "https://www.amazon.com/ap/oa",
+    tokenUrl: "https://api.amazon.com/auth/o2/token",
+    // profile scope gives name + email via LWA; Amazon Drive API is closed
+    // to new third-party apps so photo metadata access is not available
+    scopes: ["profile"],
+    clientId: () => process.env.AMAZON_CLIENT_ID,
+    clientSecret: () => process.env.AMAZON_CLIENT_SECRET,
+  },
 };
 
 const STATE_TTL_MINUTES = 10;
@@ -132,8 +148,6 @@ router.get("/oauth/connect/:provider", async (req, res): Promise<void> => {
       response_type: "code",
       scope: meta.scopes.join(" "),
       state,
-      access_type: "offline",
-      prompt: "consent",
       ...meta.extraAuthParams,
     });
     res.json({ mode: "real", authUrl: `${meta.authUrl}?${params}` });

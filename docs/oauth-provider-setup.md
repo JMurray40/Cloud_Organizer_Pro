@@ -139,6 +139,48 @@ Replace `fileorbit-api.onrender.com` with your actual API hostname if it differs
 
 ---
 
+## Amazon Photos
+
+**Provider key:** `amazon_photos`  
+**Redirect URI:** `https://fileorbit-api.onrender.com/api/oauth/callback/amazon_photos`
+
+### Important limitation
+
+Amazon closed the Amazon Drive API (which Amazon Photos is built on) to new
+third-party developers in **August 2019**. No new applications can be approved
+to read photo metadata or storage quota through an official API.
+
+What FileOrbit can do: use **Login with Amazon (LWA)** to authenticate you with
+your real Amazon account and record your name and email. Storage quota is shown
+as unlimited (which is accurate — Amazon Photos gives Prime members unlimited
+photo storage). You then use Scan or Drop to manually track which photos you
+have there.
+
+### Steps
+
+1. Go to [Amazon Developer Console](https://developer.amazon.com) and sign in
+   with your Amazon account.
+2. In the top menu: **Apps & Services** → **Login with Amazon**.
+3. Click **Create a New Security Profile**.
+   - Name: `FileOrbit`
+   - Description: `Cloud file organizer`
+   - Privacy Notice URL: your site URL (or `https://fileorbit-frontend.onrender.com`)
+   - **Save**.
+4. Click the gear icon next to your new profile → **Web Settings**.
+   - Under **Allowed Return URLs**, paste the redirect URI above → **Add**.
+   - **Save**.
+5. Back on the Security Profile list, click the gear → **Security Profile** to
+   see your **Client ID** and **Client Secret**.
+6. In Render dashboard → `fileorbit-api` → **Environment** → add:
+   - `AMAZON_CLIENT_ID` = Client ID
+   - `AMAZON_CLIENT_SECRET` = Client Secret
+7. **Manual Deploy** → **Deploy latest commit**.
+
+> Amazon Photos is unlimited for Prime members, so no storage quota bar is shown
+> after connecting — this is expected and correct.
+
+---
+
 ## iCloud Drive
 
 iCloud Drive does not offer a public OAuth API. Apple provides **Sign in with Apple**

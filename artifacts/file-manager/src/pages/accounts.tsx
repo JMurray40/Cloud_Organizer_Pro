@@ -14,6 +14,7 @@ import { z } from "zod";
 import { Link } from "wouter";
 import { Plus, Trash2, Files, HardDrive, Wifi, WifiOff, CheckCircle2, Info, AlertCircle } from "lucide-react";
 import { SiGoogledrive, SiDropbox, SiIcloud, SiBox } from "react-icons/si";
+import { FaAmazon } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -30,6 +31,7 @@ const PROVIDERS = [
   { value: "onedrive", label: "OneDrive", icon: HardDrive, color: "text-[#0078D4]", bg: "bg-[#0078D4]/10", freeQuotaGb: 5, typicalUsedGb: 1.1 },
   { value: "icloud", label: "iCloud Drive", icon: SiIcloud, color: "text-[#3478F6]", bg: "bg-[#3478F6]/10", freeQuotaGb: 5, typicalUsedGb: 3.7 },
   { value: "box", label: "Box", icon: SiBox, color: "text-[#0061D5]", bg: "bg-[#0061D5]/10", freeQuotaGb: 10, typicalUsedGb: 2.3 },
+  { value: "amazon_photos", label: "Amazon Photos", icon: FaAmazon, color: "text-[#FF9900]", bg: "bg-[#FF9900]/10", freeQuotaGb: null, typicalUsedGb: null },
   { value: "local", label: "Local Storage", icon: HardDrive, color: "text-muted-foreground", bg: "bg-muted", freeQuotaGb: null, typicalUsedGb: null },
 ];
 
@@ -70,6 +72,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   onedrive: "OneDrive",
   icloud: "iCloud Drive",
   box: "Box",
+  amazon_photos: "Amazon Photos",
   local: "Local Storage",
 };
 

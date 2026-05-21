@@ -40,6 +40,9 @@ services:
       # - key: ONEDRIVE_CLIENT_SECRET
       # - key: BOX_CLIENT_ID
       # - key: BOX_CLIENT_SECRET
+      # Amazon Photos (Login with Amazon — identity only, Drive API is closed)
+      # - key: AMAZON_CLIENT_ID
+      # - key: AMAZON_CLIENT_SECRET
 
   # ── Frontend (Static Site) ──────────────────────────────────────────────────
   - type: static
