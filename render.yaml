@@ -4,7 +4,7 @@ services:
     name: fileorbit-api
     runtime: node
     plan: free
-    buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter @workspace/api-server run build && pnpm --filter @workspace/db run push
+    buildCommand: pnpm install --no-frozen-lockfile && pnpm run build:api
     startCommand: pnpm --filter @workspace/api-server run start
     envVars:
       - key: NODE_ENV
@@ -24,7 +24,7 @@ services:
   # ── Frontend (Static Site) ──────────────────────────────────────────────────
   - type: static
     name: fileorbit-frontend
-    buildCommand: pnpm install --no-frozen-lockfile && pnpm --filter @workspace/file-manager run build
+    buildCommand: pnpm install --no-frozen-lockfile && pnpm run build:frontend
     staticPublishPath: artifacts/file-manager/dist/public
     # Rewrite all paths to index.html so client-side routing (wouter) works
     routes:
