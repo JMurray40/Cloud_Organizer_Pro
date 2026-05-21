@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { ClerkProvider, SignIn, SignUp, Show, useClerk } from "@clerk/react";
+import { ClerkProvider, SignIn, SignUp, Show, useClerk, useAuth } from "@clerk/react";
 import { publishableKeyFromHost } from "@clerk/react/internal";
 import { shadcn } from "@clerk/themes";
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from "wouter";
@@ -19,6 +19,7 @@ import HistoryPage from "@/pages/history";
 import LandingPage from "@/pages/landing";
 import NotFound from "@/pages/not-found";
 import { queryClient } from "@/lib/queryClient";
+import { setAuthTokenGetter } from "@workspace/api-client-react";
 
 const clerkPubKey = publishableKeyFromHost(
   window.location.hostname,
@@ -110,6 +111,18 @@ function SignUpPage() {
       />
     </div>
   );
+}
+
+function ClerkAuthTokenSetter() {
+  const { getToken, isSignedIn } = useAuth();
+  useEffect(() => {
+    if (isSignedIn) {
+      setAuthTokenGetter(getToken);
+    } else {
+      setAuthTokenGetter(null);
+    }
+  }, [isSignedIn, getToken]);
+  return null;
 }
 
 function ClerkQueryClientCacheInvalidator() {
@@ -224,6 +237,7 @@ function ClerkProviderWithRoutes() {
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
     >
       <QueryClientProvider client={queryClient}>
+        <ClerkAuthTokenSetter />
         <ClerkQueryClientCacheInvalidator />
         <AppRoutes />
       </QueryClientProvider>
