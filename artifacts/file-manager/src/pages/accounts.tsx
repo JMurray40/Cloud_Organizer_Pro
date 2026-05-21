@@ -12,8 +12,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Link } from "wouter";
-import { Plus, Trash2, Files, HardDrive, Wifi, WifiOff, CheckCircle2, Info, Cloud, Database } from "lucide-react";
-import { SiGoogledrive, SiDropbox, SiIcloud, SiBox } from "react-icons/si";
+import { Plus, Trash2, Files, HardDrive, Wifi, WifiOff, CheckCircle2, Info, Cloud, Server, Lock, Shield, Snowflake, Folder, FolderSync } from "lucide-react";
+import { SiGoogledrive, SiDropbox, SiIcloud, SiBox, SiMega, SiBackblaze, SiProton, SiYandexcloud } from "react-icons/si";
 import { FaAmazon } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,8 +32,16 @@ const PROVIDERS = [
   { value: "icloud", label: "iCloud Drive", icon: SiIcloud, color: "text-[#3478F6]", bg: "bg-[#3478F6]/10", freeQuotaGb: 5, typicalUsedGb: 3.7 },
   { value: "box", label: "Box", icon: SiBox, color: "text-[#0061D5]", bg: "bg-[#0061D5]/10", freeQuotaGb: 10, typicalUsedGb: 2.3 },
   { value: "amazon_photos", label: "Amazon Photos", icon: FaAmazon, color: "text-[#FF9900]", bg: "bg-[#FF9900]/10", freeQuotaGb: null, typicalUsedGb: null },
-  { value: "backblaze_b2", label: "Backblaze B2", icon: Database, color: "text-[#F25100]", bg: "bg-[#F25100]/10", freeQuotaGb: null, typicalUsedGb: null },
-  { value: "mega", label: "MEGA", icon: Cloud, color: "text-[#D9272E]", bg: "bg-[#D9272E]/10", freeQuotaGb: 20, typicalUsedGb: null },
+  { value: "backblaze_b2", label: "Backblaze B2", icon: SiBackblaze, color: "text-[#F25100]", bg: "bg-[#F25100]/10", freeQuotaGb: null, typicalUsedGb: null },
+  { value: "mega", label: "MEGA", icon: SiMega, color: "text-[#D9272E]", bg: "bg-[#D9272E]/10", freeQuotaGb: 20, typicalUsedGb: null },
+  { value: "pcloud", label: "pCloud", icon: Cloud, color: "text-[#1DA462]", bg: "bg-[#1DA462]/10", freeQuotaGb: 10, typicalUsedGb: null },
+  { value: "yandex_disk", label: "Yandex Disk", icon: SiYandexcloud, color: "text-[#FC3F1D]", bg: "bg-[#FC3F1D]/10", freeQuotaGb: 10, typicalUsedGb: null },
+  { value: "koofr", label: "Koofr", icon: Folder, color: "text-[#1FA463]", bg: "bg-[#1FA463]/10", freeQuotaGb: 10, typicalUsedGb: null },
+  { value: "idrive", label: "IDrive", icon: Server, color: "text-[#0078C8]", bg: "bg-[#0078C8]/10", freeQuotaGb: 10, typicalUsedGb: null },
+  { value: "nordlocker", label: "NordLocker", icon: Lock, color: "text-[#4687FF]", bg: "bg-[#4687FF]/10", freeQuotaGb: 3, typicalUsedGb: null },
+  { value: "proton_drive", label: "Proton Drive", icon: SiProton, color: "text-[#6D4AFF]", bg: "bg-[#6D4AFF]/10", freeQuotaGb: 1, typicalUsedGb: null },
+  { value: "icedrive", label: "IceDrive", icon: Snowflake, color: "text-[#00AEF3]", bg: "bg-[#00AEF3]/10", freeQuotaGb: 10, typicalUsedGb: null },
+  { value: "sync_com", label: "Sync.com", icon: FolderSync, color: "text-[#2D6CB8]", bg: "bg-[#2D6CB8]/10", freeQuotaGb: 5, typicalUsedGb: null },
   { value: "local", label: "Local Storage", icon: HardDrive, color: "text-muted-foreground", bg: "bg-muted", freeQuotaGb: null, typicalUsedGb: null },
 ];
 
@@ -78,6 +86,14 @@ const PROVIDER_LABELS: Record<string, string> = {
   amazon_photos: "Amazon Photos",
   backblaze_b2: "Backblaze B2",
   mega: "MEGA",
+  pcloud: "pCloud",
+  yandex_disk: "Yandex Disk",
+  koofr: "Koofr",
+  idrive: "IDrive",
+  nordlocker: "NordLocker",
+  proton_drive: "Proton Drive",
+  icedrive: "IceDrive",
+  sync_com: "Sync.com",
   local: "Local Storage",
 };
 
@@ -290,11 +306,11 @@ export default function AccountsPage() {
   const usedStorage = accounts?.reduce((sum, a) => sum + (a.quotaUsedGb ?? 0), 0) ?? 0;
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="px-4 py-4 md:px-6 md:py-6 space-y-4 md:space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground" data-testid="page-title-accounts">Cloud Accounts</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage your connected cloud storage services</p>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground" data-testid="page-title-accounts">Cloud Accounts</h1>
+          <p className="text-xs md:text-sm text-muted-foreground mt-1">Manage your connected cloud storage</p>
         </div>
         <Button data-testid="button-add-account" onClick={openDialog} className="gap-2">
           <Plus className="w-4 h-4" /> Connect Account
@@ -400,7 +416,7 @@ export default function AccountsPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {step === "pick-provider" && "Connect a Cloud Account"}
@@ -413,7 +429,7 @@ export default function AccountsPage() {
           {step === "pick-provider" && (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">Choose your storage provider to get started</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2 max-h-[60vh] overflow-y-auto pr-0.5">
                 {PROVIDERS.map((p) => {
                   const Icon = p.icon;
                   return (

@@ -53,10 +53,10 @@ export default function HistoryPage() {
   const days = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="px-4 py-4 md:px-6 md:py-6 space-y-4 md:space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground" data-testid="page-title-history">Action History</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground" data-testid="page-title-history">Action History</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Every rename, organize, and status change — with one-click undo
           </p>

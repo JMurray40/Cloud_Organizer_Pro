@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Files, Search, Upload, BookOpen, Cloud, FolderOpen,
-  Copy, History, Moon, Sun, Menu, X, LogOut,
+  Copy, History, Moon, Sun, Menu, X, LogOut, MoreHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGetDashboardStats } from "@workspace/api-client-react";
@@ -19,6 +19,14 @@ const navItems = [
   { href: "/rules", label: "Naming Rules", icon: BookOpen },
   { href: "/accounts", label: "Cloud Accounts", icon: Cloud },
   { href: "/convention", label: "Convention Guide", icon: FolderOpen },
+];
+
+// Items shown in the mobile bottom tab bar
+const bottomTabItems = [
+  { href: "/", label: "Home", icon: LayoutDashboard },
+  { href: "/files", label: "Files", icon: Files },
+  { href: "/scan", label: "Scan", icon: Search },
+  { href: "/drop", label: "Drop", icon: Upload },
 ];
 
 type SidebarProps = {
@@ -199,20 +207,59 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
             <span className="text-sm font-semibold text-foreground">FileOrbit</span>
           </div>
-          <button
-            onClick={() => setMobileOpen(false)}
-            className={cn(
-              "ml-auto p-1.5 rounded-md hover:bg-muted transition-colors",
-              !mobileOpen && "invisible"
-            )}
-            aria-label="Close menu"
-          >
-            <X className="w-5 h-5 text-foreground" />
-          </button>
+          <div className="ml-auto flex items-center gap-1">
+            <button
+              onClick={() => setDark((d) => !d)}
+              className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground"
+              aria-label={dark ? "Light mode" : "Dark mode"}
+            >
+              {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+          </div>
         </div>
 
-        {children}
+        {/* Page content — extra bottom padding on mobile to clear the tab bar */}
+        <div className="flex-1 pb-16 md:pb-0">
+          {children}
+        </div>
       </main>
+
+      {/* Mobile bottom tab bar */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-background border-t border-border flex items-stretch h-16">
+        {bottomTabItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = location === item.href;
+          const badge = badges[item.href];
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors relative",
+                isActive ? "text-primary" : "text-muted-foreground"
+              )}
+            >
+              <div className="relative">
+                <Icon className="w-5 h-5" />
+                {badge != null && (
+                  <span className="absolute -top-1 -right-2 text-[9px] font-bold px-1 py-px rounded-full leading-none bg-red-500 text-white min-w-[14px] text-center">
+                    {badge}
+                  </span>
+                )}
+              </div>
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+        {/* More button opens the sidebar drawer */}
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium text-muted-foreground transition-colors"
+        >
+          <MoreHorizontal className="w-5 h-5" />
+          <span>More</span>
+        </button>
+      </nav>
     </div>
   );
 }

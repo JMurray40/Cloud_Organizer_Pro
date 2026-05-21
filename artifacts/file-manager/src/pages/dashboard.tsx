@@ -174,7 +174,7 @@ export default function Dashboard() {
 
   if (isEmpty) {
     return (
-      <div className="p-6 space-y-8 max-w-3xl mx-auto">
+      <div className="px-4 py-4 md:px-6 md:py-6 space-y-6 max-w-3xl mx-auto">
         <div className="text-center pt-6">
           <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
             <FolderOpen className="w-8 h-8 text-primary" />
@@ -236,12 +236,12 @@ export default function Dashboard() {
   const showChecklist = !statsLoading && !checklistDismissed && !allDone;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="px-4 py-4 md:px-6 md:py-6 space-y-4 md:space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground" data-testid="page-title">
+        <h1 className="text-xl md:text-2xl font-bold text-foreground" data-testid="page-title">
           Dashboard
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">Overview of your file organization status</p>
+        <p className="text-xs md:text-sm text-muted-foreground mt-1">Overview of your file organization</p>
       </div>
 
       {/* Onboarding checklist */}

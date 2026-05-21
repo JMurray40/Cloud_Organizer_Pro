@@ -128,9 +128,9 @@ export default function DropPage() {
   const activeAccounts = accounts?.filter((a) => a.isActive) ?? [];
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="px-4 py-4 md:px-6 md:py-6 space-y-4 md:space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground" data-testid="page-title-drop">Drop Zone</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-foreground" data-testid="page-title-drop">Drop Zone</h1>
         <p className="text-sm text-muted-foreground mt-1">Drop files here to instantly get naming suggestions</p>
       </div>
 

@@ -430,10 +430,10 @@ export default function RulesPage() {
   };
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="px-4 py-4 md:px-6 md:py-6 space-y-4 md:space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground" data-testid="page-title-rules">Naming Rules</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground" data-testid="page-title-rules">Naming Rules</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Define how files should be named and where they should go — drag to reorder by priority
           </p>
