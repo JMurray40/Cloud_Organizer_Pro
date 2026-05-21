@@ -12,7 +12,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Link } from "wouter";
-import { Plus, Trash2, Files, HardDrive, Wifi, WifiOff, CheckCircle2, ExternalLink, Info } from "lucide-react";
+import { Plus, Trash2, Files, HardDrive, Wifi, WifiOff, CheckCircle2, Info, AlertCircle } from "lucide-react";
 import { SiGoogledrive, SiDropbox, SiIcloud, SiBox } from "react-icons/si";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,6 +60,19 @@ function StorageBar({ used, total }: { used: number | null; total: number | null
 
 type ConnectStep = "pick-provider" | "oauth-info" | "manual-form";
 
+type OAuthConnectResponse =
+  | { mode: "real"; authUrl: string }
+  | { mode: "simulate"; state: string; instructions: string };
+
+const PROVIDER_LABELS: Record<string, string> = {
+  google_drive: "Google Drive",
+  dropbox: "Dropbox",
+  onedrive: "OneDrive",
+  icloud: "iCloud Drive",
+  box: "Box",
+  local: "Local Storage",
+};
+
 export default function AccountsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [step, setStep] = useState<ConnectStep>("pick-provider");
@@ -69,6 +82,27 @@ export default function AccountsPage() {
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Handle return from real OAuth provider
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get("connected");
+    const oauthError = params.get("oauth_error");
+    const reason = params.get("reason");
+
+    if (connected) {
+      const label = PROVIDER_LABELS[connected] ?? connected;
+      queryClient.invalidateQueries({ queryKey: getListCloudAccountsQueryKey() });
+      toast({ title: `${label} connected!`, description: "Your account is now linked to FileOrbit." });
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (oauthError) {
+      const desc = reason === "expired"
+        ? "The authorization request timed out. Please try again."
+        : "Authorization was cancelled or failed. Please try again.";
+      toast({ title: "Connection failed", description: desc, variant: "destructive" });
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [queryClient, toast]);
   const { data: accounts, isLoading } = useListCloudAccounts();
   const createAccount = useCreateCloudAccount();
   const updateAccount = useUpdateCloudAccount();
@@ -109,16 +143,24 @@ export default function AccountsPage() {
       return;
     }
     setLoadingOauth(true);
+    let redirecting = false;
     try {
-      const data = await customFetch<{ state: string; instructions: string }>(`${BASE}/api/oauth/connect/${provider.value}`);
+      const data = await customFetch<OAuthConnectResponse>(`${BASE}/api/oauth/connect/${provider.value}`);
+      if (data.mode === "real") {
+        // Keep the button disabled while the browser navigates away
+        redirecting = true;
+        window.location.href = data.authUrl;
+        return;
+      }
+      // Simulate mode — provider credentials not configured yet
       setOauthData({ state: data.state, instructions: data.instructions });
       simulateForm.setValue("name", `My ${provider.label}`);
       simulateForm.setValue("accountLabel", "");
       setStep("oauth-info");
     } catch {
-      toast({ title: "Could not fetch OAuth info", variant: "destructive" });
+      toast({ title: "Could not start authorization", variant: "destructive" });
     } finally {
-      setLoadingOauth(false);
+      if (!redirecting) setLoadingOauth(false);
     }
   };
 
@@ -398,7 +440,7 @@ export default function AccountsPage() {
                     <Button type="button" variant="outline" className="flex-1" onClick={() => setStep("pick-provider")}>Back</Button>
                     <Button type="submit" className="flex-1 gap-2">
                       <CheckCircle2 className="w-4 h-4" />
-                      Simulate Connection
+                      Add Account
                     </Button>
                   </div>
                 </form>

@@ -20,6 +20,26 @@ services:
       # e.g. https://fileorbit-frontend.onrender.com
       - key: ALLOWED_ORIGINS
         sync: false
+      # Public URL of this API service — used to build OAuth redirect URIs
+      # e.g. https://fileorbit-api.onrender.com
+      - key: API_BASE_URL
+        sync: false
+      # Public URL of the frontend — used to redirect users back after OAuth
+      # e.g. https://fileorbit-frontend.onrender.com
+      - key: FRONTEND_URL
+        sync: false
+      # Google Drive OAuth 2.0 credentials (from Google Cloud Console)
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      # Future providers — uncomment and add credentials when ready
+      # - key: DROPBOX_CLIENT_ID
+      # - key: DROPBOX_CLIENT_SECRET
+      # - key: ONEDRIVE_CLIENT_ID
+      # - key: ONEDRIVE_CLIENT_SECRET
+      # - key: BOX_CLIENT_ID
+      # - key: BOX_CLIENT_SECRET
 
   # ── Frontend (Static Site) ──────────────────────────────────────────────────
   - type: static

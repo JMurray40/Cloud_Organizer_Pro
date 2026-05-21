@@ -6,56 +6,153 @@ import { randomBytes } from "crypto";
 
 const router: IRouter = Router();
 
-const PROVIDER_CONFIG: Record<string, {
+// ---------------------------------------------------------------------------
+// Provider registry
+// Each provider declares its OAuth endpoints and credential env vars.
+// When clientId / clientSecret are absent the flow falls back to simulation.
+// ---------------------------------------------------------------------------
+
+interface ProviderMeta {
   label: string;
   defaultQuotaGb: number;
   defaultUsedGb: number;
   rootPath: string;
-  authDomain: string;
-}> = {
-  google_drive: { label: "Google Drive", defaultQuotaGb: 15, defaultUsedGb: 4.2, rootPath: "/My Drive", authDomain: "accounts.google.com" },
-  dropbox: { label: "Dropbox", defaultQuotaGb: 2, defaultUsedGb: 0.8, rootPath: "/", authDomain: "www.dropbox.com" },
-  onedrive: { label: "OneDrive", defaultQuotaGb: 5, defaultUsedGb: 1.1, rootPath: "/Documents", authDomain: "login.microsoftonline.com" },
-  icloud: { label: "iCloud Drive", defaultQuotaGb: 5, defaultUsedGb: 3.7, rootPath: "/iCloud Drive", authDomain: "appleid.apple.com" },
-  box: { label: "Box", defaultQuotaGb: 10, defaultUsedGb: 2.3, rootPath: "/All Files", authDomain: "account.box.com" },
+  authUrl: string;
+  tokenUrl: string;
+  scopes: string[];
+  clientId: () => string | undefined;
+  clientSecret: () => string | undefined;
+}
+
+const PROVIDERS: Record<string, ProviderMeta> = {
+  google_drive: {
+    label: "Google Drive",
+    defaultQuotaGb: 15,
+    defaultUsedGb: 4.2,
+    rootPath: "/My Drive",
+    authUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+    tokenUrl: "https://oauth2.googleapis.com/token",
+    scopes: [
+      "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "openid",
+      "email",
+      "profile",
+    ],
+    clientId: () => process.env.GOOGLE_CLIENT_ID,
+    clientSecret: () => process.env.GOOGLE_CLIENT_SECRET,
+  },
+  dropbox: {
+    label: "Dropbox",
+    defaultQuotaGb: 2,
+    defaultUsedGb: 0.8,
+    rootPath: "/",
+    authUrl: "https://www.dropbox.com/oauth2/authorize",
+    tokenUrl: "https://api.dropboxapi.com/oauth2/token",
+    scopes: ["files.metadata.read", "account_info.read"],
+    clientId: () => process.env.DROPBOX_CLIENT_ID,
+    clientSecret: () => process.env.DROPBOX_CLIENT_SECRET,
+  },
+  onedrive: {
+    label: "OneDrive",
+    defaultQuotaGb: 5,
+    defaultUsedGb: 1.1,
+    rootPath: "/Documents",
+    authUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+    tokenUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+    scopes: ["Files.Read", "User.Read", "offline_access"],
+    clientId: () => process.env.ONEDRIVE_CLIENT_ID,
+    clientSecret: () => process.env.ONEDRIVE_CLIENT_SECRET,
+  },
+  icloud: {
+    label: "iCloud Drive",
+    defaultQuotaGb: 5,
+    defaultUsedGb: 3.7,
+    rootPath: "/iCloud Drive",
+    // iCloud does not offer a standard OAuth2 API — simulation only for now
+    authUrl: "",
+    tokenUrl: "",
+    scopes: [],
+    clientId: () => undefined,
+    clientSecret: () => undefined,
+  },
+  box: {
+    label: "Box",
+    defaultQuotaGb: 10,
+    defaultUsedGb: 2.3,
+    rootPath: "/All Files",
+    authUrl: "https://account.box.com/api/oauth2/authorize",
+    tokenUrl: "https://api.box.com/oauth2/token",
+    scopes: ["root_readwrite"],
+    clientId: () => process.env.BOX_CLIENT_ID,
+    clientSecret: () => process.env.BOX_CLIENT_SECRET,
+  },
 };
 
 const STATE_TTL_MINUTES = 10;
 
+function isRealOAuth(meta: ProviderMeta): boolean {
+  return !!(meta.clientId() && meta.clientSecret() && meta.authUrl);
+}
+
+export function buildRedirectUri(providerKey: string): string {
+  const base = (process.env.API_BASE_URL ?? "").replace(/\/$/, "");
+  return `${base}/api/oauth/callback/${providerKey}`;
+}
+
+// ---------------------------------------------------------------------------
+// GET /oauth/connect/:provider — initiate OAuth flow
+// Returns { mode: "real", authUrl } or { mode: "simulate", state, instructions }
+// ---------------------------------------------------------------------------
 router.get("/oauth/connect/:provider", async (req, res): Promise<void> => {
   const userId = getUserId(req);
-  const provider = req.params.provider;
-  const config = PROVIDER_CONFIG[provider];
+  const providerKey = req.params.provider;
+  const meta = PROVIDERS[providerKey];
 
-  if (!config) {
-    res.status(400).json({ error: `Unsupported provider: ${provider}` });
+  if (!meta) {
+    res.status(400).json({ error: `Unsupported provider: ${providerKey}` });
     return;
   }
 
-  // Cryptographically random state (vs. predictable Date.now+Math.random)
-  const state = `fileorbit_${provider}_${randomBytes(24).toString("hex")}`;
+  const state = `fileorbit_${providerKey}_${randomBytes(24).toString("hex")}`;
   const expiresAt = new Date(Date.now() + STATE_TTL_MINUTES * 60 * 1000);
 
-  await db.insert(oauthStatesTable).values({ state, userId, provider, expiresAt });
-
+  await db.insert(oauthStatesTable).values({ state, userId, provider: providerKey, expiresAt });
   // Opportunistic cleanup of expired states
   await db.delete(oauthStatesTable).where(lt(oauthStatesTable.expiresAt, new Date()));
 
+  if (isRealOAuth(meta)) {
+    const redirectUri = buildRedirectUri(providerKey);
+    const params = new URLSearchParams({
+      client_id: meta.clientId()!,
+      redirect_uri: redirectUri,
+      response_type: "code",
+      scope: meta.scopes.join(" "),
+      state,
+      access_type: "offline",
+      prompt: "consent",
+    });
+    res.json({ mode: "real", authUrl: `${meta.authUrl}?${params}` });
+    return;
+  }
+
   res.json({
-    provider,
-    authUrl: `https://${config.authDomain}/oauth2/authorize?client_id=fileorbit-demo&redirect_uri=${encodeURIComponent("https://fileorbit.app/oauth/callback")}&scope=files.read+files.write&state=${state}&response_type=code`,
+    mode: "simulate",
     state,
-    instructions: `In a real deployment, this would redirect you to ${config.label} to authorize FileOrbit. Click "Simulate Connection" to connect with demo account data.`,
+    instructions: `${meta.label} credentials are not yet configured. Enter your account details below to track this account manually — you can reconnect with real OAuth credentials later.`,
   });
 });
 
+// ---------------------------------------------------------------------------
+// POST /oauth/callback/:provider — simulated OAuth (no real provider involved)
+// Used when real credentials are not yet set up.
+// ---------------------------------------------------------------------------
 router.post("/oauth/callback/:provider", async (req, res): Promise<void> => {
   const userId = getUserId(req);
-  const provider = req.params.provider;
-  const config = PROVIDER_CONFIG[provider];
+  const providerKey = req.params.provider;
+  const meta = PROVIDERS[providerKey];
 
-  if (!config) {
-    res.status(400).json({ error: `Unsupported provider: ${provider}` });
+  if (!meta) {
+    res.status(400).json({ error: `Unsupported provider: ${providerKey}` });
     return;
   }
 
@@ -66,7 +163,6 @@ router.post("/oauth/callback/:provider", async (req, res): Promise<void> => {
     return;
   }
 
-  // Verify state belongs to THIS user + provider, and is unexpired
   const [stateRow] = await db
     .select()
     .from(oauthStatesTable)
@@ -74,7 +170,7 @@ router.post("/oauth/callback/:provider", async (req, res): Promise<void> => {
       and(
         eq(oauthStatesTable.state, state),
         eq(oauthStatesTable.userId, userId),
-        eq(oauthStatesTable.provider, provider),
+        eq(oauthStatesTable.provider, providerKey),
       ),
     );
 
@@ -88,25 +184,21 @@ router.post("/oauth/callback/:provider", async (req, res): Promise<void> => {
     return;
   }
 
-  // Single-use: consume the state immediately
   await db.delete(oauthStatesTable).where(eq(oauthStatesTable.state, state));
-
-  const totalGb = simulatedQuotaTotalGb ?? config.defaultQuotaGb;
-  const usedGb = simulatedQuotaUsedGb ?? config.defaultUsedGb;
 
   const [account] = await db
     .insert(cloudAccountsTable)
     .values({
       userId,
       name: accountName,
-      provider,
+      provider: providerKey,
       accountLabel,
-      rootPath: config.rootPath,
+      rootPath: meta.rootPath,
       isActive: true,
       fileCount: 0,
-      quotaTotalGb: totalGb,
-      quotaUsedGb: usedGb,
-      connectedViaOAuth: true,
+      quotaTotalGb: simulatedQuotaTotalGb ?? meta.defaultQuotaGb,
+      quotaUsedGb: simulatedQuotaUsedGb ?? meta.defaultUsedGb,
+      connectedViaOAuth: false,
     })
     .returning();
 

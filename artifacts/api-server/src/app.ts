@@ -13,6 +13,7 @@ import {
 import { requireAuth } from "./middlewares/requireAuth";
 import router from "./routes";
 import healthRouter from "./routes/health";
+import oauthCallbackRouter from "./routes/oauth-callback";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -107,6 +108,9 @@ const apiLimiter = rateLimit({
 
 // Health check is unauthenticated and unthrottled
 app.use("/api", healthRouter);
+
+// OAuth callback from providers — unauthenticated (browser redirect, no Clerk token)
+app.use("/api", oauthCallbackRouter);
 
 // Everything else: rate-limit + requireAuth + business routes
 app.use("/api", apiLimiter, requireAuth, router);
