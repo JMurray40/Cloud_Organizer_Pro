@@ -1,10 +1,11 @@
 import { useState, useRef } from "react";
-import { useScanFiles, useCreateFile, getListFilesQueryKey } from "@workspace/api-client-react";
+import { useScanFiles, useCreateFile, useListCloudAccounts, getListFilesQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { AlertTriangle, CheckCircle2, FolderOpen, Scan, FileUp, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FolderOpen, Scan, FileUp, X, HardDrive } from "lucide-react";
 
 type ScanResultItem = {
   originalName: string;
@@ -20,10 +21,15 @@ export default function ScanPage() {
   const [input, setInput] = useState("");
   const [results, setResults] = useState<ScanResultItem[]>([]);
   const [accepted, setAccepted] = useState<Set<number>>(new Set());
+  const [acceptAllProgress, setAcceptAllProgress] = useState<{ done: number; total: number } | null>(null);
   const [csvFileName, setCsvFileName] = useState<string | null>(null);
+  const [selectedAccountId, setSelectedAccountId] = useState("_none");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { data: accounts } = useListCloudAccounts();
+  const activeAccounts = accounts?.filter((a) => a.isActive) ?? [];
+  const accountId = selectedAccountId !== "_none" ? parseInt(selectedAccountId) : undefined;
 
   const handleCsvImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -80,22 +86,38 @@ export default function ScanPage() {
     );
   };
 
-  const handleAcceptAll = () => {
-    Promise.all(
-      results.map((r) =>
-        createFile.mutateAsync({
+  const handleAcceptAll = async () => {
+    const total = results.length;
+    setAcceptAllProgress({ done: 0, total });
+    let errors = 0;
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      try {
+        await createFile.mutateAsync({
           data: {
             originalName: r.originalName,
             category: r.category,
             subCategory: r.subCategory ?? undefined,
+            ...(accountId != null ? { cloudAccountId: accountId } : {}),
           },
-        })
-      )
-    ).then(() => {
-      queryClient.invalidateQueries({ queryKey: getListFilesQueryKey() });
-      setAccepted(new Set(results.map((_, i) => i)));
-      toast({ title: `${results.length} files added to tracking` });
-    });
+        });
+        setAccepted((prev) => new Set([...prev, i]));
+      } catch {
+        errors++;
+      }
+      setAcceptAllProgress({ done: i + 1, total });
+    }
+    queryClient.invalidateQueries({ queryKey: getListFilesQueryKey() });
+    setAcceptAllProgress(null);
+    if (errors === 0) {
+      toast({ title: `${total} files added to tracking` });
+    } else {
+      toast({
+        title: `${total - errors} of ${total} files added`,
+        description: `${errors} file${errors > 1 ? "s" : ""} failed — try accepting them individually.`,
+        variant: "destructive",
+      });
+    }
   };
 
   const handleAcceptOne = (index: number, result: ScanResultItem) => {
@@ -105,6 +127,7 @@ export default function ScanPage() {
           originalName: result.originalName,
           category: result.category,
           subCategory: result.subCategory ?? undefined,
+          ...(accountId != null ? { cloudAccountId: accountId } : {}),
         },
       },
       {
@@ -123,6 +146,35 @@ export default function ScanPage() {
         <h1 className="text-2xl font-bold text-foreground" data-testid="page-title-scan">Scan & Organize</h1>
         <p className="text-sm text-muted-foreground mt-1">Paste a list of filenames and get instant naming suggestions</p>
       </div>
+
+      {activeAccounts.length > 0 && (
+        <div className="bg-card border border-card-border rounded-xl p-4">
+          <label className="text-sm font-medium text-foreground block mb-2">
+            Which account are these files from?
+          </label>
+          <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+            <SelectTrigger className="w-72" data-testid="select-scan-account">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="_none">
+                <span className="flex items-center gap-2">
+                  <HardDrive className="w-3.5 h-3.5 text-muted-foreground" />
+                  Not assigned to an account
+                </span>
+              </SelectItem>
+              {activeAccounts.map((a) => (
+                <SelectItem key={a.id} value={String(a.id)}>
+                  {a.name} <span className="text-muted-foreground ml-1">({a.accountLabel})</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground mt-1.5">
+            Accepted files will be linked to this account for easy filtering later.
+          </p>
+        </div>
+      )}
 
       <div className="bg-card border border-card-border rounded-lg p-5 space-y-4">
         <div>
@@ -183,11 +235,13 @@ export default function ScanPage() {
               data-testid="button-accept-all"
               variant="outline"
               onClick={handleAcceptAll}
-              disabled={createFile.isPending}
+              disabled={acceptAllProgress !== null}
               className="gap-2"
             >
               <CheckCircle2 className="w-4 h-4" />
-              Accept All ({results.length})
+              {acceptAllProgress
+                ? `Adding ${acceptAllProgress.done}/${acceptAllProgress.total}…`
+                : `Accept All (${results.length})`}
             </Button>
           )}
         </div>

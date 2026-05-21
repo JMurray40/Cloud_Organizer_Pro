@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   useGetDashboardStats,
   useGetCategoryBreakdown,
@@ -12,11 +12,57 @@ import {
 } from "recharts";
 import {
   FolderOpen, Clock, CheckCircle2, AlertTriangle, Cloud, BookOpen,
-  HardDrive, TrendingUp, Search, Upload, ArrowRight,
+  HardDrive, TrendingUp, Search, Upload, ArrowRight, X, BookMarked,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
+const ONBOARDING_DISMISSED_KEY = "fileorbit-onboarding-dismissed";
+
+type StatsSnapshot = {
+  totalFiles: number;
+  cloudAccounts: number;
+  activeRules: number;
+  organizedFiles: number;
+  renamedFiles: number;
+};
+
+const CHECKLIST = [
+  {
+    key: "has_file",
+    label: "Add your first file",
+    description: "Use Drop Zone or Scan to bring a file into FileOrbit.",
+    href: "/drop",
+    cta: "Open Drop Zone",
+    done: (s: StatsSnapshot) => s.totalFiles > 0,
+  },
+  {
+    key: "has_account",
+    label: "Connect a cloud account",
+    description: "Link Google Drive, Dropbox, OneDrive, iCloud or Box.",
+    href: "/accounts",
+    cta: "Add Account",
+    done: (s: StatsSnapshot) => s.cloudAccounts > 0,
+  },
+  {
+    key: "has_rule",
+    label: "Create a naming rule",
+    description: "Custom rules let you auto-suggest names for specific file types.",
+    href: "/rules",
+    cta: "Manage Rules",
+    done: (s: StatsSnapshot) => s.activeRules > 0,
+  },
+  {
+    key: "has_organized",
+    label: "Organize or rename a file",
+    description: "Mark a file as organized or apply a suggested rename.",
+    href: "/files",
+    cta: "View Files",
+    done: (s: StatsSnapshot) => s.organizedFiles + s.renamedFiles > 0,
+  },
+] as const;
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
@@ -84,6 +130,9 @@ export default function Dashboard() {
   const { data: recent } = useGetRecentActivity();
   const { data: trend } = useGetOrgTrend();
   const recordSnapshot = useRecordOrgSnapshot();
+  const [checklistDismissed, setChecklistDismissed] = useState(
+    () => localStorage.getItem(ONBOARDING_DISMISSED_KEY) === "1"
+  );
 
   // Record today's snapshot at most once per browser-session — the server-side
   // upsert is idempotent, but we don't need to hit the DB on every nav.
@@ -95,6 +144,11 @@ export default function Dashboard() {
     recordSnapshot.mutate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const dismissChecklist = () => {
+    localStorage.setItem(ONBOARDING_DISMISSED_KEY, "1");
+    setChecklistDismissed(true);
+  };
 
   const orgScore =
     stats && stats.totalFiles > 0
@@ -170,6 +224,17 @@ export default function Dashboard() {
     );
   }
 
+  const checklistStats: StatsSnapshot = {
+    totalFiles: stats?.totalFiles ?? 0,
+    cloudAccounts: stats?.cloudAccounts ?? 0,
+    activeRules: stats?.activeRules ?? 0,
+    organizedFiles: stats?.organizedFiles ?? 0,
+    renamedFiles: stats?.renamedFiles ?? 0,
+  };
+  const checklistCompleted = CHECKLIST.filter((s) => s.done(checklistStats)).length;
+  const allDone = checklistCompleted === CHECKLIST.length;
+  const showChecklist = !statsLoading && !checklistDismissed && !allDone;
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -178,6 +243,79 @@ export default function Dashboard() {
         </h1>
         <p className="text-sm text-muted-foreground mt-1">Overview of your file organization status</p>
       </div>
+
+      {/* Onboarding checklist */}
+      {showChecklist && (
+        <div className="bg-card border border-card-border rounded-xl p-5">
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <BookMarked className="w-4 h-4 text-primary" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-foreground">Getting started</div>
+                <div className="text-xs text-muted-foreground">
+                  {checklistCompleted} of {CHECKLIST.length} steps complete
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={dismissChecklist}
+              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
+              title="Dismiss checklist"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Progress bar */}
+          <div className="h-1.5 rounded-full bg-muted overflow-hidden mb-4">
+            <div
+              className="h-full rounded-full bg-primary transition-all duration-500"
+              style={{ width: `${(checklistCompleted / CHECKLIST.length) * 100}%` }}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {CHECKLIST.map((step) => {
+              const done = step.done(checklistStats);
+              return (
+                <div
+                  key={step.key}
+                  className={cn(
+                    "flex items-start gap-3 p-3 rounded-lg border transition-colors",
+                    done
+                      ? "border-primary/20 bg-primary/5"
+                      : "border-border bg-background hover:bg-muted/50"
+                  )}
+                >
+                  <div className={cn(
+                    "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5",
+                    done ? "border-primary bg-primary" : "border-muted-foreground/40"
+                  )}>
+                    {done && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={cn("text-xs font-medium", done ? "text-primary line-through opacity-70" : "text-foreground")}>
+                      {step.label}
+                    </div>
+                    {!done && (
+                      <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{step.description}</div>
+                    )}
+                  </div>
+                  {!done && (
+                    <Link href={step.href}>
+                      <button className="text-xs text-primary hover:underline font-medium shrink-0 flex items-center gap-1 mt-0.5">
+                        {step.cta} <ArrowRight className="w-3 h-3" />
+                      </button>
+                    </Link>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">

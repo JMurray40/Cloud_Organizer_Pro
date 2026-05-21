@@ -54,6 +54,8 @@ export interface UpdateFileBody {
   /** @nullable */
   notes?: string | null;
   isDuplicate?: boolean;
+  /** @nullable */
+  cloudAccountId?: number | null;
 }
 
 export interface SuggestNameBody {

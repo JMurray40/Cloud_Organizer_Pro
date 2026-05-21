@@ -10,6 +10,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { Link } from "wouter";
 import { Plus, Trash2, Files, HardDrive, Wifi, WifiOff, CheckCircle2, ExternalLink, Info } from "lucide-react";
 import { SiGoogledrive, SiDropbox, SiIcloud, SiBox } from "react-icons/si";
 import { Button } from "@/components/ui/button";
@@ -174,12 +175,23 @@ export default function AccountsPage() {
   };
 
   const handleDelete = (id: number) => {
+    const account = accounts?.find((a) => a.id === id);
+    const fileCount = account?.fileCount ?? 0;
+    if (fileCount > 0) {
+      const confirmed = window.confirm(
+        `This account has ${fileCount} tracked file${fileCount !== 1 ? "s" : ""}. Removing it will leave those files unassigned. Continue?`
+      );
+      if (!confirmed) return;
+    }
     deleteAccount.mutate(
       { id },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListCloudAccountsQueryKey() });
           toast({ title: "Account removed" });
+        },
+        onError: () => {
+          toast({ title: "Could not remove account", variant: "destructive" });
         },
       }
     );
@@ -276,13 +288,20 @@ export default function AccountsPage() {
 
                 <StorageBar used={account.quotaUsedGb} total={account.quotaTotalGb} />
 
-                <button
-                  data-testid={`button-delete-account-${account.id}`}
-                  onClick={() => handleDelete(account.id)}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-500 transition-colors"
-                >
-                  <Trash2 className="w-3.5 h-3.5" /> Remove
-                </button>
+                <div className="flex items-center justify-between">
+                  <Link href={`/files?account=${account.id}`}>
+                    <span className="text-xs text-primary hover:underline font-medium flex items-center gap-1 cursor-pointer">
+                      <Files className="w-3.5 h-3.5" /> View files
+                    </span>
+                  </Link>
+                  <button
+                    data-testid={`button-delete-account-${account.id}`}
+                    onClick={() => handleDelete(account.id)}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Remove
+                  </button>
+                </div>
               </div>
             );
           })

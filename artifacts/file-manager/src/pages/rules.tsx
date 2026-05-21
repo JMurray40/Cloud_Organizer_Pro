@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Trash2, GripVertical, Power, BookOpen } from "lucide-react";
+import { Plus, Trash2, GripVertical, Power, BookOpen, Sparkles, CheckSquare, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -24,6 +24,129 @@ const ruleSchema = z.object({
 
 const CATEGORIES = ["Work", "Finance", "Personal", "Projects", "Media", "Archives"];
 
+const CATEGORY_COLORS: Record<string, string> = {
+  Work: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+  Finance: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+  Personal: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
+  Projects: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+  Media: "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400",
+  Archives: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400",
+};
+
+type StarterRule = {
+  name: string;
+  category: string;
+  pattern: string;
+  folderPath: string;
+  extensions: string;
+  priority: number;
+  isActive: boolean;
+  description: string;
+};
+
+const STARTER_RULES: StarterRule[] = [
+  {
+    name: "Work Documents",
+    category: "Work",
+    pattern: "{YYYY-MM-DD}_Work_{Description}_{version}",
+    folderPath: "Documents/Work/",
+    extensions: "pdf,doc,docx,odt,txt",
+    priority: 50,
+    isActive: true,
+    description: "PDFs, Word docs, and text files from work",
+  },
+  {
+    name: "Work Spreadsheets",
+    category: "Work",
+    pattern: "{YYYY-MM-DD}_Work_Spreadsheets_{Description}_{version}",
+    folderPath: "Documents/Work/Spreadsheets/",
+    extensions: "xls,xlsx,ods,csv",
+    priority: 45,
+    isActive: true,
+    description: "Excel files, CSVs, and data exports",
+  },
+  {
+    name: "Work Presentations",
+    category: "Work",
+    pattern: "{YYYY-MM-DD}_Work_Presentations_{Description}_{version}",
+    folderPath: "Documents/Work/Presentations/",
+    extensions: "ppt,pptx,odp",
+    priority: 44,
+    isActive: true,
+    description: "PowerPoint decks and slide presentations",
+  },
+  {
+    name: "Invoices & Receipts",
+    category: "Finance",
+    pattern: "{YYYY-MM-DD}_Finance_Invoices_{Description}_{version}",
+    folderPath: "Documents/Finance/Invoices/",
+    extensions: "pdf,jpg,jpeg,png",
+    priority: 40,
+    isActive: true,
+    description: "Invoice PDFs and scanned/photo receipts",
+  },
+  {
+    name: "Bank Statements",
+    category: "Finance",
+    pattern: "{YYYY-MM-DD}_Finance_Statements_{Description}_{version}",
+    folderPath: "Documents/Finance/Statements/",
+    extensions: "pdf,csv",
+    priority: 39,
+    isActive: true,
+    description: "Monthly bank and credit card statements",
+  },
+  {
+    name: "Personal Documents",
+    category: "Personal",
+    pattern: "{YYYY-MM-DD}_Personal_{Description}_{version}",
+    folderPath: "Documents/Personal/",
+    extensions: "pdf,doc,docx",
+    priority: 20,
+    isActive: true,
+    description: "Personal letters, contracts, and ID scans",
+  },
+  {
+    name: "Project Notes",
+    category: "Projects",
+    pattern: "{YYYY-MM-DD}_Projects_{Description}_{version}",
+    folderPath: "Documents/Projects/",
+    extensions: "md,txt,json,yaml,yml",
+    priority: 15,
+    isActive: true,
+    description: "README files, notes, and config documents",
+  },
+  {
+    name: "Photos",
+    category: "Media",
+    pattern: "{YYYY-MM-DD}_Media_Photos_{Description}",
+    folderPath: "Media/Photos/",
+    extensions: "jpg,jpeg,png,heic,webp,gif",
+    priority: 30,
+    isActive: true,
+    description: "Camera photos and downloaded images",
+  },
+  {
+    name: "Videos",
+    category: "Media",
+    pattern: "{YYYY-MM-DD}_Media_Videos_{Description}",
+    folderPath: "Media/Videos/",
+    extensions: "mp4,mov,avi,mkv,m4v",
+    priority: 29,
+    isActive: true,
+    description: "Screen recordings, exports, and clips",
+  },
+  {
+    name: "Archives & Backups",
+    category: "Archives",
+    pattern: "{YYYY-MM-DD}_Archives_{Description}_{version}",
+    folderPath: "Archives/",
+    extensions: "zip,tar,gz,rar,7z",
+    priority: 10,
+    isActive: true,
+    description: "Compressed files and project backups",
+  },
+];
+
 type Rule = {
   id: number;
   name: string;
@@ -35,8 +158,140 @@ type Rule = {
   isActive: boolean;
 };
 
+function StarterRulesDialog({
+  open,
+  onClose,
+  onImport,
+  importing,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onImport: (rules: StarterRule[]) => void;
+  importing: boolean;
+}) {
+  const [selected, setSelected] = useState<Set<string>>(
+    () => new Set(STARTER_RULES.map((r) => r.name))
+  );
+
+  const allSelected = selected.size === STARTER_RULES.length;
+
+  const toggle = (name: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    setSelected(allSelected ? new Set() : new Set(STARTER_RULES.map((r) => r.name)));
+  };
+
+  const grouped = CATEGORIES.reduce<Record<string, StarterRule[]>>((acc, cat) => {
+    const rules = STARTER_RULES.filter((r) => r.category === cat);
+    if (rules.length) acc[cat] = rules;
+    return acc;
+  }, {});
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-primary" />
+            Starter Rules
+          </DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            Select the rules to import. You can edit or delete them at any time.
+          </p>
+        </DialogHeader>
+
+        <div className="flex items-center justify-between py-1 border-b border-border">
+          <span className="text-xs text-muted-foreground">{selected.size} of {STARTER_RULES.length} selected</span>
+          <button
+            onClick={toggleAll}
+            className="flex items-center gap-1.5 text-xs font-medium text-primary hover:opacity-80 transition-opacity"
+          >
+            {allSelected ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
+            {allSelected ? "Deselect all" : "Select all"}
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 space-y-4 py-1 pr-1">
+          {Object.entries(grouped).map(([category, rules]) => (
+            <div key={category}>
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+                {category}
+              </div>
+              <div className="space-y-1.5">
+                {rules.map((rule) => {
+                  const isSelected = selected.has(rule.name);
+                  return (
+                    <button
+                      key={rule.name}
+                      onClick={() => toggle(rule.name)}
+                      className={cn(
+                        "w-full text-left flex items-start gap-3 p-3 rounded-lg border transition-colors",
+                        isSelected
+                          ? "border-primary/30 bg-primary/5"
+                          : "border-border bg-background hover:bg-muted/50"
+                      )}
+                    >
+                      <div className={cn(
+                        "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors",
+                        isSelected ? "border-primary bg-primary" : "border-muted-foreground/40"
+                      )}>
+                        {isSelected && (
+                          <svg className="w-2.5 h-2.5 text-primary-foreground" fill="none" viewBox="0 0 10 10">
+                            <path d="M1.5 5L4 7.5L8.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-medium text-foreground">{rule.name}</span>
+                          <span className={cn("text-xs px-1.5 py-0.5 rounded-full font-medium", CATEGORY_COLORS[rule.category])}>
+                            {rule.category}
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5">{rule.description}</div>
+                        <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                          <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                            {rule.folderPath}
+                          </span>
+                          <span className="text-xs text-muted-foreground">{rule.extensions}</span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <DialogFooter className="pt-2 border-t border-border">
+          <Button type="button" variant="outline" onClick={onClose} disabled={importing}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => onImport(STARTER_RULES.filter((r) => selected.has(r.name)))}
+            disabled={selected.size === 0 || importing}
+            className="gap-1.5"
+          >
+            {importing ? "Importing…" : `Import ${selected.size} rule${selected.size !== 1 ? "s" : ""}`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function RulesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isStarterOpen, setIsStarterOpen] = useState(false);
+  const [starterImporting, setStarterImporting] = useState(false);
   const [draggedId, setDraggedId] = useState<number | null>(null);
   const [dragOverId, setDragOverId] = useState<number | null>(null);
   const [localOrder, setLocalOrder] = useState<number[] | null>(null);
@@ -80,6 +335,35 @@ export default function RulesPage() {
         },
       }
     );
+  };
+
+  const handleImportStarters = async (selected: StarterRule[]) => {
+    setStarterImporting(true);
+    let failed = 0;
+    for (const rule of selected) {
+      try {
+        await createRule.mutateAsync({ data: rule });
+      } catch {
+        failed++;
+      }
+    }
+    await queryClient.invalidateQueries({ queryKey: getListRulesQueryKey() });
+    setLocalOrder(null);
+    setIsStarterOpen(false);
+    setStarterImporting(false);
+    const succeeded = selected.length - failed;
+    if (failed === 0) {
+      toast({
+        title: `${succeeded} rule${succeeded !== 1 ? "s" : ""} imported`,
+        description: "You can edit, reorder, or disable them at any time.",
+      });
+    } else {
+      toast({
+        title: `${succeeded} of ${selected.length} rules imported`,
+        description: `${failed} rule${failed !== 1 ? "s" : ""} failed — try importing them again.`,
+        variant: failed === selected.length ? "destructive" : "default",
+      });
+    }
   };
 
   const handleToggle = (id: number, isActive: boolean) => {
@@ -147,16 +431,25 @@ export default function RulesPage() {
 
   return (
     <div className="p-6 space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground" data-testid="page-title-rules">Naming Rules</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Define how files should be named and where they should go — drag to reorder by priority
           </p>
         </div>
-        <Button data-testid="button-add-rule" onClick={() => setIsDialogOpen(true)} className="gap-2">
-          <Plus className="w-4 h-4" /> Add Rule
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => setIsStarterOpen(true)}
+          >
+            <Sparkles className="w-4 h-4" /> Starter rules
+          </Button>
+          <Button data-testid="button-add-rule" onClick={() => setIsDialogOpen(true)} className="gap-2">
+            <Plus className="w-4 h-4" /> Add Rule
+          </Button>
+        </div>
       </div>
 
       <div className="bg-card border border-card-border rounded-lg overflow-hidden">
@@ -190,7 +483,9 @@ export default function RulesPage() {
               <div className="flex-1 min-w-0 space-y-1.5">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-semibold text-foreground">{rule.name}</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-accent text-accent-foreground font-medium">{rule.category}</span>
+                  <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", CATEGORY_COLORS[rule.category] ?? "bg-accent text-accent-foreground")}>
+                    {rule.category}
+                  </span>
                   {!rule.isActive && (
                     <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">disabled</span>
                   )}
@@ -237,12 +532,29 @@ export default function RulesPage() {
             <div className="text-xs text-muted-foreground max-w-xs">
               Add naming rules to control how files are categorised, named, and where they are placed.
             </div>
-            <Button size="sm" onClick={() => setIsDialogOpen(true)} className="mt-1 gap-1.5">
-              <Plus className="w-3.5 h-3.5" /> Add First Rule
-            </Button>
+            <div className="flex items-center gap-2 mt-1">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => setIsStarterOpen(true)}
+              >
+                <Sparkles className="w-3.5 h-3.5" /> Load starter rules
+              </Button>
+              <Button size="sm" onClick={() => setIsDialogOpen(true)} className="gap-1.5">
+                <Plus className="w-3.5 h-3.5" /> Add Custom Rule
+              </Button>
+            </div>
           </div>
         )}
       </div>
+
+      <StarterRulesDialog
+        open={isStarterOpen}
+        onClose={() => setIsStarterOpen(false)}
+        onImport={handleImportStarters}
+        importing={starterImporting}
+      />
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-lg">

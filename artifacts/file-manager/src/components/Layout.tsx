@@ -7,6 +7,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useGetDashboardStats } from "@workspace/api-client-react";
 import { useUser, useClerk } from "@clerk/react";
+import { useDarkMode } from "@/hooks/use-dark-mode";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -20,61 +21,19 @@ const navItems = [
   { href: "/convention", label: "Convention Guide", icon: FolderOpen },
 ];
 
-function useDarkMode() {
-  const [dark, setDark] = useState(() => {
-    if (typeof document === "undefined") return false;
-    return (
-      document.documentElement.classList.contains("dark") ||
-      localStorage.getItem("fileorbit-theme") === "dark"
-    );
-  });
+type SidebarProps = {
+  location: string;
+  badges: Record<string, number | undefined>;
+  dark: boolean;
+  onToggleDark: () => void;
+  user: ReturnType<typeof useUser>["user"];
+  userInitials: string;
+  displayName: string;
+  signOut: ReturnType<typeof useClerk>["signOut"];
+};
 
-  useEffect(() => {
-    if (dark) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("fileorbit-theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("fileorbit-theme", "light");
-    }
-  }, [dark]);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("fileorbit-theme");
-    if (saved === "dark") {
-      setDark(true);
-      document.documentElement.classList.add("dark");
-    }
-  }, []);
-
-  return [dark, setDark] as const;
-}
-
-export default function Layout({ children }: { children: React.ReactNode }) {
-  const [location] = useLocation();
-  const [dark, setDark] = useDarkMode();
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const { data: stats } = useGetDashboardStats();
-  const { user } = useUser();
-  const { signOut } = useClerk();
-
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [location]);
-
-  const badges: Record<string, number | undefined> = {
-    "/files": stats?.pendingFiles && stats.pendingFiles > 0 ? stats.pendingFiles : undefined,
-    "/duplicates": stats?.duplicatesFound && stats.duplicatesFound > 0 ? stats.duplicatesFound : undefined,
-  };
-
-  const userInitials = user
-    ? (user.firstName?.[0] ?? "") + (user.lastName?.[0] ?? user.emailAddresses?.[0]?.emailAddress?.[0] ?? "")
-    : "?";
-  const displayName = user?.firstName
-    ? `${user.firstName} ${user.lastName ?? ""}`.trim()
-    : user?.emailAddresses?.[0]?.emailAddress ?? "";
-
-  const Sidebar = () => (
+function Sidebar({ location, badges, dark, onToggleDark, user, userInitials, displayName, signOut }: SidebarProps) {
+  return (
     <aside className="w-60 shrink-0 border-r border-sidebar-border bg-sidebar flex flex-col h-full">
       <div className="p-5 border-b border-sidebar-border">
         <div className="flex items-center gap-2.5">
@@ -127,7 +86,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </nav>
 
       <div className="p-3 border-t border-sidebar-border space-y-1">
-        {/* User info + sign out */}
         {user && (
           <div className="flex items-center gap-2.5 px-3 py-2 mb-1">
             <div className="w-7 h-7 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-bold shrink-0 uppercase">
@@ -147,7 +105,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         )}
 
         <button
-          onClick={() => setDark(!dark)}
+          onClick={onToggleDark}
           className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
           title={dark ? "Switch to light mode" : "Switch to dark mode"}
         >
@@ -160,13 +118,49 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </div>
     </aside>
   );
+}
+
+export default function Layout({ children }: { children: React.ReactNode }) {
+  const [location] = useLocation();
+  const [dark, setDark] = useDarkMode();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const { data: stats } = useGetDashboardStats();
+  const { user } = useUser();
+  const { signOut } = useClerk();
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location]);
+
+  const badges: Record<string, number | undefined> = {
+    "/files": stats?.pendingFiles && stats.pendingFiles > 0 ? stats.pendingFiles : undefined,
+    "/duplicates": stats?.duplicatesFound && stats.duplicatesFound > 0 ? stats.duplicatesFound : undefined,
+  };
+
+  const userInitials = user
+    ? (user.firstName?.[0] ?? "") + (user.lastName?.[0] ?? user.emailAddresses?.[0]?.emailAddress?.[0] ?? "")
+    : "?";
+  const displayName = user?.firstName
+    ? `${user.firstName} ${user.lastName ?? ""}`.trim()
+    : user?.emailAddresses?.[0]?.emailAddress ?? "";
+
+  const sidebarProps: SidebarProps = {
+    location,
+    badges,
+    dark,
+    onToggleDark: () => setDark((d) => !d),
+    user,
+    userInitials,
+    displayName,
+    signOut,
+  };
 
   return (
     <div className="flex min-h-screen bg-background">
       {/* Desktop sidebar */}
       <div className="hidden md:flex md:flex-col md:w-60 md:shrink-0">
         <div className="sticky top-0 h-screen flex flex-col border-r border-sidebar-border bg-sidebar">
-          <Sidebar />
+          <Sidebar {...sidebarProps} />
         </div>
       </div>
 
@@ -185,7 +179,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <Sidebar />
+        <Sidebar {...sidebarProps} />
       </div>
 
       {/* Main content */}
