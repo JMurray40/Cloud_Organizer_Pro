@@ -192,6 +192,62 @@ are needed; this is the current behavior when iCloud is selected.
 
 ---
 
+---
+
+## Backblaze B2
+
+**Provider key:** `backblaze_b2`  
+**Auth model:** Application Keys — no OAuth redirect, no env vars required
+
+Backblaze B2 does not support OAuth 2.0. Instead, users generate an Application
+Key in their Backblaze dashboard and paste it directly into FileOrbit. The app
+verifies the key against the B2 API before saving it.
+
+Storage quota is not shown — B2 is pay-as-you-go with no fixed quota.
+
+### Steps (per-user, done inside the app)
+
+The user does this themselves when they click "Connect Backblaze B2":
+
+1. Log into [backblaze.com](https://www.backblaze.com) and go to **B2 Cloud Storage**.
+2. In the left sidebar: **App Keys** → **Add a New Application Key**.
+   - Name: `FileOrbit` (or anything descriptive)
+   - Allow access to: **All Buckets** (or a specific bucket)
+   - Type of access: **Read and Write**
+   - Leave other settings as defaults → **Create New Key**.
+3. Copy the **keyID** and **applicationKey** shown (the key is only displayed once).
+4. In FileOrbit → Cloud Accounts → Connect Account → pick **Backblaze B2**.
+5. Enter a nickname, paste the Key ID and Application Key → click **Connect**.
+
+FileOrbit verifies the credentials with Backblaze and saves the account.
+
+> No Render environment variables are needed for Backblaze — credentials come
+> directly from the user, not the app configuration.
+
+---
+
+## MEGA
+
+**Provider key:** `mega`  
+**Auth model:** Manual tracking only
+
+MEGA does not offer a public third-party OAuth API. Their developer registration
+portal has been inaccessible since approximately 2023, and MEGA's end-to-end
+encryption means server-side file access without the user's password is
+architecturally impossible.
+
+FileOrbit adds MEGA as a **manual tracking** account: you enter your account
+details (nickname + email), then use Scan or Drop to record which files you
+have there. No setup steps required — just pick MEGA from the provider list
+and fill in the form.
+
+If MEGA ever publishes a supported third-party API, adding real integration
+would follow the same pattern as Dropbox: add exchange/getUserInfo functions in
+`artifacts/api-server/src/routes/oauth-callback.ts` and update the `connectMode`
+in `artifacts/api-server/src/routes/oauth.ts`.
+
+---
+
 ## Claude Prompt (to use later)
 
 If you want to hand this work to Claude in a future session, paste the following:

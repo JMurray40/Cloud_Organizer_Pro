@@ -12,7 +12,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Link } from "wouter";
-import { Plus, Trash2, Files, HardDrive, Wifi, WifiOff, CheckCircle2, Info, AlertCircle } from "lucide-react";
+import { Plus, Trash2, Files, HardDrive, Wifi, WifiOff, CheckCircle2, Info, Cloud, Database } from "lucide-react";
 import { SiGoogledrive, SiDropbox, SiIcloud, SiBox } from "react-icons/si";
 import { FaAmazon } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,8 @@ const PROVIDERS = [
   { value: "icloud", label: "iCloud Drive", icon: SiIcloud, color: "text-[#3478F6]", bg: "bg-[#3478F6]/10", freeQuotaGb: 5, typicalUsedGb: 3.7 },
   { value: "box", label: "Box", icon: SiBox, color: "text-[#0061D5]", bg: "bg-[#0061D5]/10", freeQuotaGb: 10, typicalUsedGb: 2.3 },
   { value: "amazon_photos", label: "Amazon Photos", icon: FaAmazon, color: "text-[#FF9900]", bg: "bg-[#FF9900]/10", freeQuotaGb: null, typicalUsedGb: null },
+  { value: "backblaze_b2", label: "Backblaze B2", icon: Database, color: "text-[#F25100]", bg: "bg-[#F25100]/10", freeQuotaGb: null, typicalUsedGb: null },
+  { value: "mega", label: "MEGA", icon: Cloud, color: "text-[#D9272E]", bg: "bg-[#D9272E]/10", freeQuotaGb: 20, typicalUsedGb: null },
   { value: "local", label: "Local Storage", icon: HardDrive, color: "text-muted-foreground", bg: "bg-muted", freeQuotaGb: null, typicalUsedGb: null },
 ];
 
@@ -60,10 +62,11 @@ function StorageBar({ used, total }: { used: number | null; total: number | null
   );
 }
 
-type ConnectStep = "pick-provider" | "oauth-info" | "manual-form";
+type ConnectStep = "pick-provider" | "oauth-info" | "api-key-form" | "manual-form";
 
 type OAuthConnectResponse =
   | { mode: "real"; authUrl: string }
+  | { mode: "api-key" }
   | { mode: "simulate"; state: string; instructions: string };
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -73,6 +76,8 @@ const PROVIDER_LABELS: Record<string, string> = {
   icloud: "iCloud Drive",
   box: "Box",
   amazon_photos: "Amazon Photos",
+  backblaze_b2: "Backblaze B2",
+  mega: "MEGA",
   local: "Local Storage",
 };
 
@@ -129,12 +134,22 @@ export default function AccountsPage() {
     defaultValues: { name: "", accountLabel: "" },
   });
 
+  const apiKeyForm = useForm<{ nickname: string; keyId: string; applicationKey: string }>({
+    resolver: zodResolver(z.object({
+      nickname: z.string().min(1, "Required"),
+      keyId: z.string().min(1, "Required"),
+      applicationKey: z.string().min(1, "Required"),
+    })),
+    defaultValues: { nickname: "", keyId: "", applicationKey: "" },
+  });
+
   const openDialog = () => {
     setStep("pick-provider");
     setSelectedProvider(null);
     setOauthData(null);
     manualForm.reset();
     simulateForm.reset();
+    apiKeyForm.reset();
     setDialogOpen(true);
   };
 
@@ -150,12 +165,16 @@ export default function AccountsPage() {
     try {
       const data = await customFetch<OAuthConnectResponse>(`${BASE}/api/oauth/connect/${provider.value}`);
       if (data.mode === "real") {
-        // Keep the button disabled while the browser navigates away
         redirecting = true;
         window.location.href = data.authUrl;
         return;
       }
-      // Simulate mode — provider credentials not configured yet
+      if (data.mode === "api-key") {
+        apiKeyForm.setValue("nickname", `My ${provider.label}`);
+        setStep("api-key-form");
+        return;
+      }
+      // Simulate mode — provider has no API or credentials not yet configured
       setOauthData({ state: data.state, instructions: data.instructions });
       simulateForm.setValue("name", `My ${provider.label}`);
       simulateForm.setValue("accountLabel", "");
@@ -188,6 +207,28 @@ export default function AccountsPage() {
     queryClient.invalidateQueries({ queryKey: getListCloudAccountsQueryKey() });
     setDialogOpen(false);
     toast({ title: `${selectedProvider.label} connected!`, description: `${values.name} is now tracked in FileOrbit.` });
+  };
+
+  const handleApiKeySubmit = async (values: { nickname: string; keyId: string; applicationKey: string }) => {
+    if (!selectedProvider) return;
+    try {
+      await customFetch(`${BASE}/api/oauth/verify-key/${selectedProvider.value}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accountName: values.nickname,
+          keyId: values.keyId,
+          applicationKey: values.applicationKey,
+        }),
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Could not verify credentials";
+      toast({ title: "Connection failed", description: msg, variant: "destructive" });
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: getListCloudAccountsQueryKey() });
+    setDialogOpen(false);
+    toast({ title: `${selectedProvider.label} connected!`, description: `${values.nickname} is now tracked in FileOrbit.` });
   };
 
   const handleManualCreate = (values: { name: string; accountLabel: string; rootPath?: string; quotaTotalGb?: string; quotaUsedGb?: string }) => {
@@ -364,6 +405,7 @@ export default function AccountsPage() {
             <DialogTitle>
               {step === "pick-provider" && "Connect a Cloud Account"}
               {step === "oauth-info" && `Connect ${selectedProvider?.label}`}
+              {step === "api-key-form" && `Connect ${selectedProvider?.label}`}
               {step === "manual-form" && "Add Local Storage"}
             </DialogTitle>
           </DialogHeader>
@@ -444,6 +486,74 @@ export default function AccountsPage() {
                     <Button type="submit" className="flex-1 gap-2">
                       <CheckCircle2 className="w-4 h-4" />
                       Add Account
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </div>
+          )}
+
+          {step === "api-key-form" && selectedProvider && (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg text-sm text-amber-700 dark:text-amber-300">
+                <Info className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>
+                  Find your credentials in the{" "}
+                  <strong>Backblaze dashboard</strong> under{" "}
+                  <strong>App Keys → Add a New Application Key</strong>.
+                  Grant read/write access to all buckets.
+                </span>
+              </div>
+              <Form {...apiKeyForm}>
+                <form onSubmit={apiKeyForm.handleSubmit(handleApiKeySubmit)} className="space-y-3">
+                  <FormField
+                    control={apiKeyForm.control}
+                    name="nickname"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Account Nickname</FormLabel>
+                        <FormControl>
+                          <Input placeholder={`My ${selectedProvider.label}`} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={apiKeyForm.control}
+                    name="keyId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Key ID</FormLabel>
+                        <FormControl>
+                          <Input placeholder="0041a2b3c4d5e6f..." {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={apiKeyForm.control}
+                    name="applicationKey"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Application Key</FormLabel>
+                        <FormControl>
+                          <Input type="password" placeholder="••••••••••••••••" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Keys are verified against Backblaze and stored securely.
+                    Backblaze B2 is pay-as-you-go — no storage quota is shown.
+                  </p>
+                  <div className="flex gap-2 pt-1">
+                    <Button type="button" variant="outline" className="flex-1" onClick={() => setStep("pick-provider")}>Back</Button>
+                    <Button type="submit" className="flex-1 gap-2" disabled={apiKeyForm.formState.isSubmitting}>
+                      <CheckCircle2 className="w-4 h-4" />
+                      {apiKeyForm.formState.isSubmitting ? "Verifying..." : "Connect"}
                     </Button>
                   </div>
                 </form>
