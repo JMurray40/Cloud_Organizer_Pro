@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format, formatDistanceToNow } from "date-fns";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const ACTION_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string }> = {
   organized: { label: "Organized", icon: CheckCircle, color: "text-green-600" },

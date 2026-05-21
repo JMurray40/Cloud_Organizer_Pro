@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const PROVIDERS = [
   { value: "google_drive", label: "Google Drive", icon: SiGoogledrive, color: "text-[#4285F4]", bg: "bg-[#4285F4]/10", freeQuotaGb: 15, typicalUsedGb: 4.2 },
