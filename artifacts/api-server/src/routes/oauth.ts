@@ -20,6 +20,8 @@ interface ProviderMeta {
   authUrl: string;
   tokenUrl: string;
   scopes: string[];
+  /** Extra query params appended to the authorization URL (provider-specific). */
+  extraAuthParams?: Record<string, string>;
   clientId: () => string | undefined;
   clientSecret: () => string | undefined;
 }
@@ -49,6 +51,8 @@ const PROVIDERS: Record<string, ProviderMeta> = {
     authUrl: "https://www.dropbox.com/oauth2/authorize",
     tokenUrl: "https://api.dropboxapi.com/oauth2/token",
     scopes: ["files.metadata.read", "account_info.read"],
+    // Required to receive a refresh_token from Dropbox
+    extraAuthParams: { token_access_type: "offline" },
     clientId: () => process.env.DROPBOX_CLIENT_ID,
     clientSecret: () => process.env.DROPBOX_CLIENT_SECRET,
   },
@@ -130,6 +134,7 @@ router.get("/oauth/connect/:provider", async (req, res): Promise<void> => {
       state,
       access_type: "offline",
       prompt: "consent",
+      ...meta.extraAuthParams,
     });
     res.json({ mode: "real", authUrl: `${meta.authUrl}?${params}` });
     return;
