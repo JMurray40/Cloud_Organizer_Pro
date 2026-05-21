@@ -57,7 +57,7 @@ app.use(
 // Example: ALLOWED_ORIGINS=https://fileorbit.app,https://app.fileorbit.app
 const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "")
   .split(",")
-  .map((s) => s.trim())
+  .map((s) => s.trim().replace(/\/$/, ""))
   .filter(Boolean);
 
 app.use(
@@ -66,17 +66,19 @@ app.use(
     origin: (origin, cb) => {
       // Same-origin / curl / server-to-server requests have no Origin header.
       if (!origin) return cb(null, true);
+      const normalizedOrigin = origin.replace(/\/$/, "");
       if (allowedOrigins.length === 0) {
-        // Dev fallback: if no allowlist configured, allow localhost & replit dev urls
+        // Dev/test fallback: allow localhost, Replit, and Render preview URLs
         if (
-          /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
-          /\.replit\.(dev|app)$/.test(new URL(origin).hostname)
+          /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(normalizedOrigin) ||
+          /\.replit\.(dev|app)$/.test(new URL(normalizedOrigin).hostname) ||
+          /\.onrender\.com$/.test(new URL(normalizedOrigin).hostname)
         ) {
           return cb(null, true);
         }
         return cb(new Error(`Origin ${origin} not allowed`));
       }
-      if (allowedOrigins.includes(origin)) return cb(null, true);
+      if (allowedOrigins.includes(normalizedOrigin)) return cb(null, true);
       return cb(new Error(`Origin ${origin} not allowed`));
     },
   }),
