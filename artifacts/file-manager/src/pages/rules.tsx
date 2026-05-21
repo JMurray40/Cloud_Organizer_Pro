@@ -339,21 +339,30 @@ export default function RulesPage() {
 
   const handleImportStarters = async (selected: StarterRule[]) => {
     setStarterImporting(true);
-    try {
-      for (const rule of selected) {
+    let failed = 0;
+    for (const rule of selected) {
+      try {
         await createRule.mutateAsync({ data: rule });
+      } catch {
+        failed++;
       }
-      await queryClient.invalidateQueries({ queryKey: getListRulesQueryKey() });
-      setLocalOrder(null);
-      setIsStarterOpen(false);
+    }
+    await queryClient.invalidateQueries({ queryKey: getListRulesQueryKey() });
+    setLocalOrder(null);
+    setIsStarterOpen(false);
+    setStarterImporting(false);
+    const succeeded = selected.length - failed;
+    if (failed === 0) {
       toast({
-        title: `${selected.length} rule${selected.length !== 1 ? "s" : ""} imported`,
+        title: `${succeeded} rule${succeeded !== 1 ? "s" : ""} imported`,
         description: "You can edit, reorder, or disable them at any time.",
       });
-    } catch {
-      toast({ title: "Import failed", description: "Some rules may not have been created.", variant: "destructive" });
-    } finally {
-      setStarterImporting(false);
+    } else {
+      toast({
+        title: `${succeeded} of ${selected.length} rules imported`,
+        description: `${failed} rule${failed !== 1 ? "s" : ""} failed — try importing them again.`,
+        variant: failed === selected.length ? "destructive" : "default",
+      });
     }
   };
 

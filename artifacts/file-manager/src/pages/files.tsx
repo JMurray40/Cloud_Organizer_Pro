@@ -131,6 +131,9 @@ export default function FilesPage() {
           const accountName = newAccountId ? (accountMap.get(newAccountId)?.name ?? "account") : "unassigned";
           toast({ title: "File moved", description: `Now linked to ${accountName}` });
         },
+        onError: () => {
+          toast({ title: "Move failed", description: "Could not reassign the file. Please try again.", variant: "destructive" });
+        },
       }
     );
   };
@@ -537,7 +540,8 @@ export default function FilesPage() {
           <div className="space-y-2 py-1">
             <button
               onClick={() => moveDialog && handleMoveToAccount(moveDialog.fileId, null)}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border hover:bg-muted/60 transition-colors text-left"
+              disabled={updateFile.isPending}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border hover:bg-muted/60 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
                 <HardDrive className="w-4 h-4 text-muted-foreground" />
@@ -548,10 +552,10 @@ export default function FilesPage() {
               <button
                 key={a.id}
                 onClick={() => moveDialog && handleMoveToAccount(moveDialog.fileId, a.id)}
-                disabled={!a.isActive}
+                disabled={!a.isActive || updateFile.isPending}
                 className={cn(
                   "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-colors text-left",
-                  a.isActive
+                  a.isActive && !updateFile.isPending
                     ? "border-border hover:border-primary/30 hover:bg-primary/5"
                     : "border-border opacity-50 cursor-not-allowed"
                 )}

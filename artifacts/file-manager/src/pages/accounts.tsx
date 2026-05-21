@@ -175,12 +175,23 @@ export default function AccountsPage() {
   };
 
   const handleDelete = (id: number) => {
+    const account = accounts?.find((a) => a.id === id);
+    const fileCount = account?.fileCount ?? 0;
+    if (fileCount > 0) {
+      const confirmed = window.confirm(
+        `This account has ${fileCount} tracked file${fileCount !== 1 ? "s" : ""}. Removing it will leave those files unassigned. Continue?`
+      );
+      if (!confirmed) return;
+    }
     deleteAccount.mutate(
       { id },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListCloudAccountsQueryKey() });
           toast({ title: "Account removed" });
+        },
+        onError: () => {
+          toast({ title: "Could not remove account", variant: "destructive" });
         },
       }
     );

@@ -100,6 +100,7 @@ export const UpdateFileBody = zod.object({
   status: zod.string().optional(),
   notes: zod.string().nullish(),
   isDuplicate: zod.boolean().optional(),
+  cloudAccountId: zod.number().nullish(),
 });
 
 export const UpdateFileResponse = zod.object({

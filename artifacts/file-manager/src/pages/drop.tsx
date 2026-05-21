@@ -17,6 +17,7 @@ type DroppedFile = {
     subCategory?: string | null;
     explanation: string;
   };
+  suggestionError?: boolean;
   accepted?: boolean;
 };
 
@@ -45,19 +46,23 @@ export default function DropPage() {
       else if (["mp4", "mov", "avi", "mkv"].includes(ext)) category = "Media";
       else if (["mp3", "wav", "flac"].includes(ext)) category = "Media";
 
-      const suggestion = await suggestName.mutateAsync({
-        data: { originalName: file.name, category },
-      }).catch(() => null);
-
-      if (suggestion) {
-        setFiles((prev) =>
-          prev.map((f) =>
-            f.name === file.name && !f.suggestion
-              ? { ...f, suggestion: { ...suggestion, subCategory: suggestion.subCategory ?? null } }
-              : f
-          )
-        );
+      let suggestion = null;
+      let suggestionError = false;
+      try {
+        suggestion = await suggestName.mutateAsync({ data: { originalName: file.name, category } });
+      } catch {
+        suggestionError = true;
       }
+
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.name === file.name && !f.suggestion && !f.suggestionError
+            ? suggestion
+              ? { ...f, suggestion: { ...suggestion, subCategory: suggestion.subCategory ?? null } }
+              : { ...f, suggestionError }
+            : f
+        )
+      );
     }
   }, [suggestName]);
 
@@ -238,6 +243,8 @@ export default function DropPage() {
                         <span className="text-xs text-muted-foreground">{file.suggestion.suggestedPath}</span>
                       </div>
                     </div>
+                  ) : file.suggestionError ? (
+                    <div className="text-xs text-red-500">Could not generate suggestion — remove and retry.</div>
                   ) : (
                     <div className="text-xs text-muted-foreground animate-pulse">Generating suggestion...</div>
                   )}
