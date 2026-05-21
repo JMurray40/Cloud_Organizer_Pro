@@ -58,9 +58,9 @@ const categories = [
 
 export default function ConventionPage() {
   return (
-    <div className="p-6 space-y-6 max-w-4xl">
+    <div className="px-4 py-4 md:px-6 md:py-6 space-y-5 md:space-y-6 max-w-4xl">
       <div>
-        <h1 className="text-2xl font-bold text-foreground" data-testid="page-title-convention">Naming Convention Guide</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-foreground" data-testid="page-title-convention">Naming Convention Guide</h1>
         <p className="text-sm text-muted-foreground mt-1">The standard naming system used across all your files</p>
       </div>
 

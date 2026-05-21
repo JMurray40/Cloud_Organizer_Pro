@@ -306,11 +306,11 @@ export default function AccountsPage() {
   const usedStorage = accounts?.reduce((sum, a) => sum + (a.quotaUsedGb ?? 0), 0) ?? 0;
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="px-4 py-4 md:px-6 md:py-6 space-y-4 md:space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground" data-testid="page-title-accounts">Cloud Accounts</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage your connected cloud storage services</p>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground" data-testid="page-title-accounts">Cloud Accounts</h1>
+          <p className="text-xs md:text-sm text-muted-foreground mt-1">Manage your connected cloud storage</p>
         </div>
         <Button data-testid="button-add-account" onClick={openDialog} className="gap-2">
           <Plus className="w-4 h-4" /> Connect Account
@@ -416,7 +416,7 @@ export default function AccountsPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {step === "pick-provider" && "Connect a Cloud Account"}
@@ -429,7 +429,7 @@ export default function AccountsPage() {
           {step === "pick-provider" && (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">Choose your storage provider to get started</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2 max-h-[60vh] overflow-y-auto pr-0.5">
                 {PROVIDERS.map((p) => {
                   const Icon = p.icon;
                   return (

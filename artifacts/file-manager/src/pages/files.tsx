@@ -211,11 +211,11 @@ export default function FilesPage() {
   const allPendingSelected = pendingFiles.length > 0 && pendingFiles.every((f) => selected.has(f.id));
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="px-4 py-4 md:px-6 md:py-6 space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground" data-testid="page-title-files">Files</h1>
-          <p className="text-sm text-muted-foreground mt-1">All tracked file records with suggested names and paths</p>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground" data-testid="page-title-files">Files</h1>
+          <p className="text-xs md:text-sm text-muted-foreground mt-1">Tracked file records with suggested names</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -227,11 +227,12 @@ export default function FilesPage() {
             disabled={!files || files.length === 0}
           >
             <FileDown className="w-3.5 h-3.5" />
-            Export CSV
+            <span className="hidden sm:inline">Export CSV</span>
+            <span className="sm:hidden">CSV</span>
           </Button>
         </div>
         {selected.size > 0 && (
-          <div className="flex items-center gap-2 bg-primary/5 border border-primary/20 rounded-lg px-3 py-2">
+          <div className="w-full flex items-center gap-2 bg-primary/5 border border-primary/20 rounded-lg px-3 py-2 flex-wrap">
             <span className="text-sm font-medium text-primary">{selected.size} selected</span>
             <Button
               size="sm"
@@ -241,7 +242,7 @@ export default function FilesPage() {
               onClick={() => handleBulkRename("apply")}
             >
               <Play className="w-3.5 h-3.5" />
-              Apply Renames
+              Apply
             </Button>
             <Button
               size="sm"
@@ -251,10 +252,10 @@ export default function FilesPage() {
               onClick={() => handleBulkRename("download-script")}
             >
               <Download className="w-3.5 h-3.5" />
-              Download Script
+              Script
             </Button>
             <button
-              className="text-xs text-muted-foreground hover:text-foreground ml-1"
+              className="text-xs text-muted-foreground hover:text-foreground ml-auto"
               onClick={() => setSelected(new Set())}
             >
               Clear
@@ -289,8 +290,8 @@ export default function FilesPage() {
         ))}
       </div>
 
-      <div className="flex gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-48">
+      <div className="flex gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             data-testid="input-search"
@@ -301,7 +302,7 @@ export default function FilesPage() {
           />
         </div>
         <Select value={category} onValueChange={setCategory}>
-          <SelectTrigger className="w-40" data-testid="select-category">
+          <SelectTrigger className="w-32 sm:w-40" data-testid="select-category">
             <SelectValue placeholder="Category" />
           </SelectTrigger>
           <SelectContent>
@@ -311,7 +312,7 @@ export default function FilesPage() {
           </SelectContent>
         </Select>
         <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="w-36" data-testid="select-status">
+          <SelectTrigger className="w-28 sm:w-36" data-testid="select-status">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -337,138 +338,249 @@ export default function FilesPage() {
       </div>
 
       <div className="bg-card border border-card-border rounded-lg overflow-hidden">
-        <div className="grid grid-cols-[32px_1fr_1fr_100px_110px_90px_110px_90px] text-xs font-semibold text-muted-foreground bg-muted/40 px-4 py-2.5 border-b border-border">
-          <button
-            onClick={toggleSelectAll}
-            title={allPendingSelected ? "Deselect all" : "Select all pending"}
-            className="flex items-center text-muted-foreground hover:text-foreground"
-          >
-            {allPendingSelected ? <SquareCheck className="w-4 h-4 text-primary" /> : <Square className="w-4 h-4" />}
-          </button>
-          <button onClick={() => toggleSort("originalName")} className="flex items-center hover:text-foreground text-left">
-            Original Name <SortIcon field="originalName" />
-          </button>
-          <span>Suggested Name</span>
-          <button onClick={() => toggleSort("category")} className="flex items-center hover:text-foreground text-left">
-            Category <SortIcon field="category" />
-          </button>
-          <span>Suggested Path</span>
-          <button onClick={() => toggleSort("status")} className="flex items-center hover:text-foreground text-left">
-            Status <SortIcon field="status" />
-          </button>
-          <span>Account</span>
-          <span>Actions</span>
-        </div>
         {isLoading ? (
           <div className="py-12 text-center text-muted-foreground text-sm">Loading files...</div>
         ) : pagedFiles.length > 0 ? (
-          pagedFiles.map((file) => {
-            const isSelected = selected.has(file.id);
-            return (
-              <div
-                key={file.id}
-                data-testid={`row-file-${file.id}`}
-                className={cn(
-                  "grid grid-cols-[32px_1fr_1fr_100px_110px_90px_110px_90px] items-center px-4 py-3 border-b border-border last:border-0 hover:bg-muted/30 transition-colors",
-                  isSelected && "bg-primary/5"
-                )}
-              >
+          <>
+            {/* ── Mobile card list (hidden on sm+) ── */}
+            <div className="sm:hidden divide-y divide-border">
+              <div className="flex items-center gap-3 px-4 py-2 bg-muted/40 border-b border-border">
                 <button
-                  onClick={() => toggleSelect(file.id)}
-                  disabled={file.status === "organized"}
-                  className="flex items-center text-muted-foreground hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed"
+                  onClick={toggleSelectAll}
+                  title={allPendingSelected ? "Deselect all" : "Select all pending"}
+                  className="text-muted-foreground hover:text-foreground"
                 >
-                  {isSelected ? <SquareCheck className="w-4 h-4 text-primary" /> : <Square className="w-4 h-4" />}
+                  {allPendingSelected ? <SquareCheck className="w-4 h-4 text-primary" /> : <Square className="w-4 h-4" />}
                 </button>
-                <div className="min-w-0">
-                  <div className="text-sm text-foreground truncate font-medium">{file.originalName}</div>
-                  {file.isDuplicate && (
-                    <span className="text-xs text-red-500 flex items-center gap-1">
-                      <Copy className="w-3 h-3" /> Duplicate risk
-                    </span>
-                  )}
-                </div>
-                <div className="min-w-0 pr-2">
-                  <button
-                    onClick={() => copyToClipboard(file.suggestedName)}
-                    data-testid={`button-copy-name-${file.id}`}
-                    className="text-xs text-primary font-mono truncate block hover:underline text-left w-full"
-                    title="Click to copy"
-                  >
-                    {file.suggestedName}
-                  </button>
-                </div>
-                <div>
-                  <span className="text-xs text-foreground">{file.category}</span>
-                  {file.subCategory && <div className="text-xs text-muted-foreground">{file.subCategory}</div>}
-                </div>
-                <div>
-                  <button
-                    onClick={() => copyToClipboard(file.suggestedPath)}
-                    data-testid={`button-copy-path-${file.id}`}
-                    className="text-xs text-muted-foreground font-mono truncate hover:text-primary block w-full text-left"
-                    title="Click to copy"
-                  >
-                    {file.suggestedPath}
-                  </button>
-                </div>
-                <div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[file.status] ?? STATUS_COLORS.ignored}`}>
-                    {file.status}
-                  </span>
-                </div>
-                <div className="min-w-0">
-                  {file.cloudAccountId != null ? (
-                    <span className="text-xs text-foreground truncate block">
-                      {accountMap.get(file.cloudAccountId)?.name ?? `Account #${file.cloudAccountId}`}
-                    </span>
-                  ) : (
-                    <span className="text-xs text-muted-foreground/60 italic">Unassigned</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1">
-                  {accounts && accounts.length > 0 && (
-                    <button
-                      data-testid={`button-move-${file.id}`}
-                      onClick={() => setMoveDialog({ fileId: file.id, fileName: file.originalName })}
-                      className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-primary transition-colors"
-                      title="Move to account"
-                    >
-                      <MoveRight className="w-4 h-4" />
-                    </button>
-                  )}
-                  {file.status !== "organized" && (
-                    <button
-                      data-testid={`button-organize-${file.id}`}
-                      onClick={() => handleStatusChange(file.id, "organized")}
-                      className="p-1.5 rounded hover:bg-green-100 dark:hover:bg-green-900/20 text-muted-foreground hover:text-green-600 transition-colors"
-                      title="Mark as organized"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                    </button>
-                  )}
-                  {file.status !== "ignored" && (
-                    <button
-                      data-testid={`button-ignore-${file.id}`}
-                      onClick={() => handleStatusChange(file.id, "ignored")}
-                      className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                      title="Mark as ignored"
-                    >
-                      <MinusCircle className="w-4 h-4" />
-                    </button>
-                  )}
-                  <button
-                    data-testid={`button-delete-${file.id}`}
-                    onClick={() => handleDelete(file.id)}
-                    className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-muted-foreground hover:text-red-500 transition-colors"
-                    title="Remove record"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+                <span className="text-xs font-semibold text-muted-foreground">
+                  {pagedFiles.length} file{pagedFiles.length !== 1 ? "s" : ""}
+                </span>
               </div>
-            );
-          })
+              {pagedFiles.map((file) => {
+                const isSelected = selected.has(file.id);
+                return (
+                  <div
+                    key={file.id}
+                    data-testid={`row-file-${file.id}`}
+                    className={cn("px-4 py-3 transition-colors", isSelected && "bg-primary/5")}
+                  >
+                    <div className="flex items-start gap-3">
+                      <button
+                        onClick={() => toggleSelect(file.id)}
+                        disabled={file.status === "organized"}
+                        className="mt-0.5 shrink-0 text-muted-foreground hover:text-primary disabled:opacity-30"
+                      >
+                        {isSelected ? <SquareCheck className="w-4 h-4 text-primary" /> : <Square className="w-4 h-4" />}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium text-foreground truncate">{file.originalName}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS_COLORS[file.status] ?? STATUS_COLORS.ignored}`}>
+                            {file.status}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => copyToClipboard(file.suggestedName)}
+                          data-testid={`button-copy-name-${file.id}`}
+                          className="text-xs text-primary font-mono truncate block hover:underline text-left w-full mt-0.5"
+                          title="Tap to copy suggested name"
+                        >
+                          {file.suggestedName}
+                        </button>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {file.category}{file.subCategory ? ` / ${file.subCategory}` : ""}
+                          {file.cloudAccountId != null && (
+                            <span className="ml-2 text-foreground/60">
+                              · {accountMap.get(file.cloudAccountId)?.name ?? "Account"}
+                            </span>
+                          )}
+                        </div>
+                        {file.isDuplicate && (
+                          <span className="text-xs text-red-500 flex items-center gap-1 mt-0.5">
+                            <Copy className="w-3 h-3" /> Duplicate risk
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {/* Action row */}
+                    <div className="flex items-center gap-1 mt-2 ml-7">
+                      {accounts && accounts.length > 0 && (
+                        <button
+                          data-testid={`button-move-${file.id}`}
+                          onClick={() => setMoveDialog({ fileId: file.id, fileName: file.originalName })}
+                          className="p-2 rounded-md hover:bg-accent text-muted-foreground hover:text-primary transition-colors"
+                          title="Move to account"
+                        >
+                          <MoveRight className="w-4 h-4" />
+                        </button>
+                      )}
+                      {file.status !== "organized" && (
+                        <button
+                          data-testid={`button-organize-${file.id}`}
+                          onClick={() => handleStatusChange(file.id, "organized")}
+                          className="p-2 rounded-md hover:bg-green-100 dark:hover:bg-green-900/20 text-muted-foreground hover:text-green-600 transition-colors"
+                          title="Mark as organized"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                        </button>
+                      )}
+                      {file.status !== "ignored" && (
+                        <button
+                          data-testid={`button-ignore-${file.id}`}
+                          onClick={() => handleStatusChange(file.id, "ignored")}
+                          className="p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                          title="Mark as ignored"
+                        >
+                          <MinusCircle className="w-4 h-4" />
+                        </button>
+                      )}
+                      <button
+                        data-testid={`button-delete-${file.id}`}
+                        onClick={() => handleDelete(file.id)}
+                        className="p-2 rounded-md hover:bg-red-100 dark:hover:bg-red-900/20 text-muted-foreground hover:text-red-500 transition-colors"
+                        title="Remove record"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ── Desktop table (hidden below sm) ── */}
+            <div className="hidden sm:block">
+              <div className="grid grid-cols-[32px_1fr_1fr_100px_110px_90px_110px_90px] text-xs font-semibold text-muted-foreground bg-muted/40 px-4 py-2.5 border-b border-border">
+                <button
+                  onClick={toggleSelectAll}
+                  title={allPendingSelected ? "Deselect all" : "Select all pending"}
+                  className="flex items-center text-muted-foreground hover:text-foreground"
+                >
+                  {allPendingSelected ? <SquareCheck className="w-4 h-4 text-primary" /> : <Square className="w-4 h-4" />}
+                </button>
+                <button onClick={() => toggleSort("originalName")} className="flex items-center hover:text-foreground text-left">
+                  Original Name <SortIcon field="originalName" />
+                </button>
+                <span>Suggested Name</span>
+                <button onClick={() => toggleSort("category")} className="flex items-center hover:text-foreground text-left">
+                  Category <SortIcon field="category" />
+                </button>
+                <span>Suggested Path</span>
+                <button onClick={() => toggleSort("status")} className="flex items-center hover:text-foreground text-left">
+                  Status <SortIcon field="status" />
+                </button>
+                <span>Account</span>
+                <span>Actions</span>
+              </div>
+              {pagedFiles.map((file) => {
+                const isSelected = selected.has(file.id);
+                return (
+                  <div
+                    key={file.id}
+                    data-testid={`row-file-${file.id}`}
+                    className={cn(
+                      "grid grid-cols-[32px_1fr_1fr_100px_110px_90px_110px_90px] items-center px-4 py-3 border-b border-border last:border-0 hover:bg-muted/30 transition-colors",
+                      isSelected && "bg-primary/5"
+                    )}
+                  >
+                    <button
+                      onClick={() => toggleSelect(file.id)}
+                      disabled={file.status === "organized"}
+                      className="flex items-center text-muted-foreground hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      {isSelected ? <SquareCheck className="w-4 h-4 text-primary" /> : <Square className="w-4 h-4" />}
+                    </button>
+                    <div className="min-w-0">
+                      <div className="text-sm text-foreground truncate font-medium">{file.originalName}</div>
+                      {file.isDuplicate && (
+                        <span className="text-xs text-red-500 flex items-center gap-1">
+                          <Copy className="w-3 h-3" /> Duplicate risk
+                        </span>
+                      )}
+                    </div>
+                    <div className="min-w-0 pr-2">
+                      <button
+                        onClick={() => copyToClipboard(file.suggestedName)}
+                        data-testid={`button-copy-name-${file.id}`}
+                        className="text-xs text-primary font-mono truncate block hover:underline text-left w-full"
+                        title="Click to copy"
+                      >
+                        {file.suggestedName}
+                      </button>
+                    </div>
+                    <div>
+                      <span className="text-xs text-foreground">{file.category}</span>
+                      {file.subCategory && <div className="text-xs text-muted-foreground">{file.subCategory}</div>}
+                    </div>
+                    <div>
+                      <button
+                        onClick={() => copyToClipboard(file.suggestedPath)}
+                        data-testid={`button-copy-path-${file.id}`}
+                        className="text-xs text-muted-foreground font-mono truncate hover:text-primary block w-full text-left"
+                        title="Click to copy"
+                      >
+                        {file.suggestedPath}
+                      </button>
+                    </div>
+                    <div>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[file.status] ?? STATUS_COLORS.ignored}`}>
+                        {file.status}
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      {file.cloudAccountId != null ? (
+                        <span className="text-xs text-foreground truncate block">
+                          {accountMap.get(file.cloudAccountId)?.name ?? `Account #${file.cloudAccountId}`}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground/60 italic">Unassigned</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {accounts && accounts.length > 0 && (
+                        <button
+                          data-testid={`button-move-${file.id}`}
+                          onClick={() => setMoveDialog({ fileId: file.id, fileName: file.originalName })}
+                          className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-primary transition-colors"
+                          title="Move to account"
+                        >
+                          <MoveRight className="w-4 h-4" />
+                        </button>
+                      )}
+                      {file.status !== "organized" && (
+                        <button
+                          data-testid={`button-organize-${file.id}`}
+                          onClick={() => handleStatusChange(file.id, "organized")}
+                          className="p-1.5 rounded hover:bg-green-100 dark:hover:bg-green-900/20 text-muted-foreground hover:text-green-600 transition-colors"
+                          title="Mark as organized"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                        </button>
+                      )}
+                      {file.status !== "ignored" && (
+                        <button
+                          data-testid={`button-ignore-${file.id}`}
+                          onClick={() => handleStatusChange(file.id, "ignored")}
+                          className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                          title="Mark as ignored"
+                        >
+                          <MinusCircle className="w-4 h-4" />
+                        </button>
+                      )}
+                      <button
+                        data-testid={`button-delete-${file.id}`}
+                        onClick={() => handleDelete(file.id)}
+                        className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-muted-foreground hover:text-red-500 transition-colors"
+                        title="Remove record"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         ) : (
           <div className="py-16 flex flex-col items-center gap-3 text-center">
             <FolderOpen className="w-10 h-10 text-muted-foreground/40" />
