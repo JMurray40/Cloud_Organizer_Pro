@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useListFiles, useUpdateFile, useDeleteFile, useListCloudAccounts, getListFilesQueryKey, getGetDashboardStatsQueryKey } from "@workspace/api-client-react";
+import { useListFiles, useUpdateFile, useDeleteFile, useListCloudAccounts, getListFilesQueryKey, getGetDashboardStatsQueryKey, customFetch } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Search, Trash2, CheckCircle2, MinusCircle, Copy, Play, Download, Square, SquareCheck, ArrowUpDown, ArrowUp, ArrowDown, FileDown, FolderOpen, MoveRight, HardDrive } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -180,12 +180,11 @@ export default function FilesPage() {
     if (selected.size === 0) return;
     setBulkLoading(true);
     try {
-      const res = await fetch(`${BASE}/api/files/bulk-rename`, {
+      const data = await customFetch<{ updated: number; skipped: number; script?: string }>(`${BASE}/api/files/bulk-rename`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fileIds: [...selected], action }),
       });
-      const data = await res.json();
 
       if (action === "apply") {
         invalidate();

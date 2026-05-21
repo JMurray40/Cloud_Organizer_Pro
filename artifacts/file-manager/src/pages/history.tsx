@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useListHistory, getListHistoryQueryKey, getListFilesQueryKey } from "@workspace/api-client-react";
+import { useListHistory, getListHistoryQueryKey, getListFilesQueryKey, customFetch } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { History, Undo2, GitBranch, CheckCircle, MinusCircle, Trash2, Play, Copy, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,8 +28,7 @@ export default function HistoryPage() {
   const handleUndo = async (id: number, label: string) => {
     setUndoing(id);
     try {
-      const res = await fetch(`${BASE}/api/history/${id}/undo`, { method: "POST" });
-      const data = await res.json();
+      const data = await customFetch<{ success: boolean; message: string }>(`${BASE}/api/history/${id}/undo`, { method: "POST" });
       if (data.success) {
         toast({ title: "Action undone", description: data.message });
         queryClient.invalidateQueries({ queryKey: getListHistoryQueryKey() });

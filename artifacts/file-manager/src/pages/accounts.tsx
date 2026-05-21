@@ -5,6 +5,7 @@ import {
   useUpdateCloudAccount,
   useDeleteCloudAccount,
   getListCloudAccountsQueryKey,
+  customFetch,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -109,8 +110,7 @@ export default function AccountsPage() {
     }
     setLoadingOauth(true);
     try {
-      const res = await fetch(`${BASE}/api/oauth/connect/${provider.value}`);
-      const data = await res.json();
+      const data = await customFetch<{ state: string; instructions: string }>(`${BASE}/api/oauth/connect/${provider.value}`);
       setOauthData({ state: data.state, instructions: data.instructions });
       simulateForm.setValue("name", `My ${provider.label}`);
       simulateForm.setValue("accountLabel", "");
@@ -124,18 +124,19 @@ export default function AccountsPage() {
 
   const handleSimulateOauth = async (values: { name: string; accountLabel: string }) => {
     if (!selectedProvider || !oauthData) return;
-    const res = await fetch(`${BASE}/api/oauth/callback/${selectedProvider.value}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        state: oauthData.state,
-        accountName: values.name,
-        accountLabel: values.accountLabel,
-        simulatedQuotaTotalGb: selectedProvider.freeQuotaGb,
-        simulatedQuotaUsedGb: selectedProvider.typicalUsedGb,
-      }),
-    });
-    if (!res.ok) {
+    try {
+      await customFetch(`${BASE}/api/oauth/callback/${selectedProvider.value}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          state: oauthData.state,
+          accountName: values.name,
+          accountLabel: values.accountLabel,
+          simulatedQuotaTotalGb: selectedProvider.freeQuotaGb,
+          simulatedQuotaUsedGb: selectedProvider.typicalUsedGb,
+        }),
+      });
+    } catch {
       toast({ title: "Connection failed", variant: "destructive" });
       return;
     }
