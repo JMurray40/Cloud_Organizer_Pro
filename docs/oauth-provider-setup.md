@@ -248,6 +248,124 @@ in `artifacts/api-server/src/routes/oauth.ts`.
 
 ---
 
+## pCloud
+
+**Provider key:** `pcloud`  
+**Redirect URI:** `https://fileorbit-api.onrender.com/api/oauth/callback/pcloud`
+
+### Steps
+
+1. Go to [pCloud Developers](https://docs.pcloud.com/my_apps/) and sign in with your pCloud account.
+2. Click **Create App**.
+   - App name: `FileOrbit`
+   - App description: `Cloud file organizer`
+   - **Create**.
+3. On the app settings page:
+   - Under **Redirect URI**, paste the redirect URI above → **Save**.
+4. Copy the **App Key** (Client ID) and **App Secret** (Client Secret).
+5. In Render dashboard → `fileorbit-api` → **Environment** → add:
+   - `PCLOUD_CLIENT_ID` = App Key
+   - `PCLOUD_CLIENT_SECRET` = App Secret
+6. **Manual Deploy** → **Deploy latest commit**.
+
+> **Note:** pCloud has two data regions — US (default) and EU. The app automatically detects which region your account uses via the `locationid` parameter returned during authorization. No extra configuration needed.
+
+> **Free tier:** 10 GB. Paid plans go up to 2 TB.
+
+---
+
+## Yandex Disk
+
+**Provider key:** `yandex_disk`  
+**Redirect URI:** `https://fileorbit-api.onrender.com/api/oauth/callback/yandex_disk`
+
+> **Important:** Yandex is a Russian company. Consider the geopolitical implications before connecting accounts with sensitive files.
+
+### Steps
+
+1. Go to [Yandex OAuth](https://oauth.yandex.com/) and sign in with your Yandex account.
+2. Click **Register new client**.
+   - Name: `FileOrbit`
+   - Service: **Yandex Disk REST API**
+   - Redirect URIs: select **Web services** → paste the redirect URI above → **Add**.
+   - Permissions: add `cloud_api:disk.read` and `cloud_api:disk.info`.
+   - **Create**.
+3. Copy the **ClientID** and **Client secret**.
+4. In Render dashboard → `fileorbit-api` → **Environment** → add:
+   - `YANDEX_CLIENT_ID` = ClientID
+   - `YANDEX_CLIENT_SECRET` = Client secret
+5. **Manual Deploy** → **Deploy latest commit**.
+
+> **Free tier:** 10 GB. Paid plans available.
+
+---
+
+## Koofr
+
+**Provider key:** `koofr`  
+**Auth model:** Manual tracking (OAuth 2.0 available for future integration)
+
+Koofr supports OAuth 2.0 via their [Developer API](https://app.koofr.net/developers/api), but requires a developer registration that needs approval from Koofr. FileOrbit currently supports Koofr as manual tracking — enter your account details and use Scan or Drop to record which files you have there.
+
+To add real OAuth support in the future, register at `https://app.koofr.net/developers/api` and add `exchange`/`getUserInfo` functions to `oauth-callback.ts` following the same pattern as Dropbox.
+
+---
+
+## IDrive
+
+**Provider key:** `idrive`  
+**Auth model:** Manual tracking only
+
+IDrive's personal backup OAuth API is not accepting new third-party application registrations. IDrive e2 (their S3-compatible product) uses access keys rather than OAuth.
+
+FileOrbit supports IDrive as manual tracking — enter your account details and use Scan or Drop to record which files you have there.
+
+---
+
+## NordLocker
+
+**Provider key:** `nordlocker`  
+**Auth model:** Manual tracking only
+
+NordLocker has no public third-party API. There is no OAuth endpoint, no developer portal, and no programmatic access to file metadata.
+
+FileOrbit supports NordLocker as manual tracking — enter your account details and use Scan or Drop to record which files you have there.
+
+---
+
+## Proton Drive
+
+**Provider key:** `proton_drive`  
+**Auth model:** Manual tracking only
+
+Proton Drive uses a proprietary Secure Remote Password (SRP) authentication protocol combined with end-to-end encryption. No public OAuth API is available for third-party apps. Proton's SDK for third-party integration is in early preview and not yet ready for production use.
+
+FileOrbit supports Proton Drive as manual tracking — enter your account details and use Scan or Drop to record which files you have there.
+
+---
+
+## IceDrive
+
+**Provider key:** `icedrive`  
+**Auth model:** Manual tracking only
+
+IceDrive has no public third-party API or developer portal. No OAuth endpoint is available for file metadata access.
+
+FileOrbit supports IceDrive as manual tracking — enter your account details and use Scan or Drop to record which files you have there.
+
+---
+
+## Sync.com
+
+**Provider key:** `sync_com`  
+**Auth model:** Manual tracking only
+
+Sync.com has no public third-party API. There is no OAuth endpoint or developer program for external applications.
+
+FileOrbit supports Sync.com as manual tracking — enter your account details and use Scan or Drop to record which files you have there.
+
+---
+
 ## Claude Prompt (to use later)
 
 If you want to hand this work to Claude in a future session, paste the following:
