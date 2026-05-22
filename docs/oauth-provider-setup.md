@@ -1,5 +1,38 @@
 # OAuth Provider Setup Guide
 
+---
+
+## ⬜ Pending — Things to complete before inviting testers
+
+Go to **Render dashboard → `fileorbit-api` → Environment** and add/verify each item below.
+
+### Required for any OAuth provider to work
+- [ ] `API_BASE_URL` = `https://fileorbit-api.onrender.com` (your actual API hostname)
+- [ ] `FRONTEND_URL` = `https://fileorbit-frontend.onrender.com` (your actual frontend hostname)
+
+### Security (token encryption)
+- [ ] `ENCRYPTION_KEY` = 64-character hex string — generate with:
+  ```
+  node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+  ```
+
+### Google Drive
+- [ ] `GOOGLE_CLIENT_ID` = Client ID from Google Cloud Console
+- [ ] `GOOGLE_CLIENT_SECRET` = Client Secret from Google Cloud Console
+- [ ] Add each tester's Google account as a **Test User** in the OAuth consent screen
+  (Google Cloud Console → APIs & Services → OAuth Consent Screen → Test Users)
+  — up to 100 accounts before you need to publish the app
+
+### Dropbox *(if you want Dropbox sync)*
+- [ ] `DROPBOX_CLIENT_ID` = App key from Dropbox App Console
+- [ ] `DROPBOX_CLIENT_SECRET` = App secret from Dropbox App Console
+- [ ] Note: dev mode allows 3 users; click **Apply for Production** to remove the cap
+
+Once all variables are set, click **Manual Deploy → Deploy latest commit** in Render.
+After redeploy, the Connect Account dialog will show **OAuth ✓** badges for configured providers.
+
+---
+
 Each provider below is already wired into the codebase. To activate a provider,
 you only need to complete the steps in its section, then add the two environment
 variables to the `fileorbit-api` service in your Render dashboard and redeploy.
