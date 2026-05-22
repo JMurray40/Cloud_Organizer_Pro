@@ -320,8 +320,17 @@ export default function AccountsPage() {
           : `All ${result.total} files are already tracked.`,
       });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Could not sync files";
-      toast({ title: "Sync failed", description: msg, variant: "destructive" });
+      // Extract the detail field from the API error response body if present
+      const errData = (err instanceof Error && "data" in err)
+        ? (err as unknown as { data: Record<string, string> | null }).data
+        : null;
+      const msg = errData?.detail ?? errData?.error ?? (err instanceof Error ? err.message : "Could not sync files");
+      const isExpired = (err instanceof Error && "status" in err && (err as { status: number }).status === 401);
+      toast({
+        title: isExpired ? "Token expired" : "Sync failed",
+        description: msg,
+        variant: "destructive",
+      });
     } finally {
       setSyncingAccountId(null);
     }
@@ -425,16 +434,22 @@ export default function AccountsPage() {
                     </span>
                   </Link>
                   <div className="flex items-center gap-3">
-                    {account.connectedViaOAuth && SYNC_CAPABLE_PROVIDERS.has(account.provider) && (
-                      <button
-                        data-testid={`button-sync-account-${account.id}`}
-                        onClick={() => handleSync(account.id)}
-                        disabled={syncingAccountId === account.id}
-                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
-                      >
-                        <RefreshCw className={cn("w-3.5 h-3.5", syncingAccountId === account.id && "animate-spin")} />
-                        {syncingAccountId === account.id ? "Syncing…" : "Sync"}
-                      </button>
+                    {SYNC_CAPABLE_PROVIDERS.has(account.provider) && (
+                      account.connectedViaOAuth ? (
+                        <button
+                          data-testid={`button-sync-account-${account.id}`}
+                          onClick={() => handleSync(account.id)}
+                          disabled={syncingAccountId === account.id}
+                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+                        >
+                          <RefreshCw className={cn("w-3.5 h-3.5", syncingAccountId === account.id && "animate-spin")} />
+                          {syncingAccountId === account.id ? "Syncing…" : "Sync"}
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground italic">
+                          Reconnect via OAuth to sync
+                        </span>
+                      )
                     )}
                     <button
                       data-testid={`button-delete-account-${account.id}`}
