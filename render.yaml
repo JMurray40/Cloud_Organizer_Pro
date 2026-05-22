@@ -12,6 +12,10 @@ services:
       # Set these in the Render dashboard — never commit secret values here
       - key: DATABASE_URL
         sync: false
+      # 64-char hex string (32 bytes) used to encrypt OAuth tokens at rest.
+      # Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+      - key: ENCRYPTION_KEY
+        sync: false
       - key: CLERK_SECRET_KEY
         sync: false
       - key: CLERK_PUBLISHABLE_KEY

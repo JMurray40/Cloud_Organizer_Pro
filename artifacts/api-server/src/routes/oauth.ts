@@ -3,6 +3,7 @@ import { and, eq, lt } from "drizzle-orm";
 import { db, cloudAccountsTable, oauthStatesTable, oauthTokensTable } from "@workspace/db";
 import { getUserId } from "../middlewares/requireAuth";
 import { randomBytes } from "crypto";
+import { encrypt } from "../lib/encrypt";
 
 const router: IRouter = Router();
 
@@ -368,8 +369,8 @@ router.post("/oauth/verify-key/:provider", async (req, res): Promise<void> => {
       userId,
       provider: "backblaze_b2",
       cloudAccountId: account.id,
-      accessToken: applicationKey,
-      refreshToken: keyId,
+      accessToken: encrypt(applicationKey),
+      refreshToken: encrypt(keyId),
       expiresAt: null,
       scope: null,
     });

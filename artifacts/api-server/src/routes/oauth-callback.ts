@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { and, eq } from "drizzle-orm";
 import { db, cloudAccountsTable, oauthStatesTable, oauthTokensTable } from "@workspace/db";
 import { logger } from "../lib/logger";
+import { encrypt } from "../lib/encrypt";
 import { buildRedirectUri } from "./oauth";
 
 const router: IRouter = Router();
@@ -487,8 +488,8 @@ router.get("/oauth/callback/:provider", async (req, res): Promise<void> => {
         userId,
         provider,
         cloudAccountId: account.id,
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token ?? null,
+        accessToken: encrypt(tokens.access_token),
+        refreshToken: tokens.refresh_token ? encrypt(tokens.refresh_token) : null,
         expiresAt: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000) : null,
         scope: tokens.scope ?? null,
       });
@@ -526,8 +527,8 @@ router.get("/oauth/callback/:provider", async (req, res): Promise<void> => {
       userId,
       provider,
       cloudAccountId: account.id,
-      accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token ?? null,
+      accessToken: encrypt(tokens.access_token),
+      refreshToken: tokens.refresh_token ? encrypt(tokens.refresh_token) : null,
       expiresAt: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000) : null,
       scope: tokens.scope ?? null,
     });
