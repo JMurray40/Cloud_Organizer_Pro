@@ -370,7 +370,7 @@ router.delete("/files/:id", async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 
-function detectCategory(filename: string): string {
+export function detectCategory(filename: string): string {
   const lower = filename.toLowerCase();
   const ext = lower.split(".").pop() ?? "";
 
@@ -394,7 +394,7 @@ function detectCategory(filename: string): string {
   return "Work";
 }
 
-function detectSubCategory(filename: string, category: string): string | undefined {
+export function detectSubCategory(filename: string, category: string): string | undefined {
   const lower = filename.toLowerCase();
   if (category === "Work") {
     if (/report/i.test(filename)) return "Reports";

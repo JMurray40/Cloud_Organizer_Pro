@@ -5,6 +5,7 @@ import {
   useUpdateCloudAccount,
   useDeleteCloudAccount,
   getListCloudAccountsQueryKey,
+  getListFilesQueryKey,
   customFetch,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -12,7 +13,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Link } from "wouter";
-import { Plus, Trash2, Files, HardDrive, Wifi, WifiOff, CheckCircle2, Info, Cloud, Server, Lock, Shield, Snowflake, Folder, FolderSync } from "lucide-react";
+import { Plus, Trash2, Files, HardDrive, Wifi, WifiOff, CheckCircle2, Info, Cloud, Server, Lock, Shield, Snowflake, Folder, FolderSync, RefreshCw } from "lucide-react";
 import { SiGoogledrive, SiDropbox, SiIcloud, SiBox, SiMega, SiBackblaze, SiProton, SiYandexcloud } from "react-icons/si";
 import { FaAmazon } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,8 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+
+const SYNC_CAPABLE_PROVIDERS = new Set(["google_drive", "dropbox", "onedrive", "box", "pcloud", "yandex_disk"]);
 
 const PROVIDERS = [
   { value: "google_drive", label: "Google Drive", icon: SiGoogledrive, color: "text-[#4285F4]", bg: "bg-[#4285F4]/10", freeQuotaGb: 15, typicalUsedGb: 4.2 },
@@ -103,6 +106,7 @@ export default function AccountsPage() {
   const [selectedProvider, setSelectedProvider] = useState<typeof PROVIDERS[0] | null>(null);
   const [oauthData, setOauthData] = useState<{ state: string; instructions: string } | null>(null);
   const [loadingOauth, setLoadingOauth] = useState(false);
+  const [syncingAccountId, setSyncingAccountId] = useState<number | null>(null);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -300,6 +304,29 @@ export default function AccountsPage() {
     );
   };
 
+  const handleSync = async (accountId: number) => {
+    setSyncingAccountId(accountId);
+    try {
+      const result = await customFetch<{ imported: number; skipped: number; total: number }>(
+        `${BASE}/api/cloud-accounts/${accountId}/sync`,
+        { method: "POST" }
+      );
+      queryClient.invalidateQueries({ queryKey: getListCloudAccountsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListFilesQueryKey() });
+      toast({
+        title: result.imported > 0 ? `${result.imported} files imported` : "Already up to date",
+        description: result.imported > 0
+          ? `${result.skipped} already tracked · ${result.total} total found`
+          : `All ${result.total} files are already tracked.`,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Could not sync files";
+      toast({ title: "Sync failed", description: msg, variant: "destructive" });
+    } finally {
+      setSyncingAccountId(null);
+    }
+  };
+
   const getProviderMeta = (provider: string) => PROVIDERS.find((p) => p.value === provider);
 
   const totalStorage = accounts?.reduce((sum, a) => sum + (a.quotaTotalGb ?? 0), 0) ?? 0;
@@ -391,19 +418,32 @@ export default function AccountsPage() {
 
                 <StorageBar used={account.quotaUsedGb} total={account.quotaTotalGb} />
 
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <Link href={`/files?account=${account.id}`}>
                     <span className="text-xs text-primary hover:underline font-medium flex items-center gap-1 cursor-pointer">
                       <Files className="w-3.5 h-3.5" /> View files
                     </span>
                   </Link>
-                  <button
-                    data-testid={`button-delete-account-${account.id}`}
-                    onClick={() => handleDelete(account.id)}
-                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-500 transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" /> Remove
-                  </button>
+                  <div className="flex items-center gap-3">
+                    {account.connectedViaOAuth && SYNC_CAPABLE_PROVIDERS.has(account.provider) && (
+                      <button
+                        data-testid={`button-sync-account-${account.id}`}
+                        onClick={() => handleSync(account.id)}
+                        disabled={syncingAccountId === account.id}
+                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+                      >
+                        <RefreshCw className={cn("w-3.5 h-3.5", syncingAccountId === account.id && "animate-spin")} />
+                        {syncingAccountId === account.id ? "Syncing…" : "Sync"}
+                      </button>
+                    )}
+                    <button
+                      data-testid={`button-delete-account-${account.id}`}
+                      onClick={() => handleDelete(account.id)}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Remove
+                    </button>
+                  </div>
                 </div>
               </div>
             );

@@ -29,6 +29,19 @@ export function encrypt(plaintext: string): string {
 }
 
 /**
+ * Like decrypt(), but returns the raw value unchanged if it doesn't look like
+ * an encrypted ciphertext (e.g. tokens stored before encryption was introduced).
+ */
+export function safeDecrypt(value: string): string {
+  if (!value.includes(":")) return value;
+  try {
+    return decrypt(value);
+  } catch {
+    return value;
+  }
+}
+
+/**
  * Decrypts a string produced by encrypt().
  * Returns the original plaintext, or throws if the ciphertext is tampered.
  */
