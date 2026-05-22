@@ -259,6 +259,25 @@ export function buildRedirectUri(providerKey: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// GET /oauth/status — which providers are ready to use
+// Returns the connect mode and whether credentials are configured for each
+// provider. Used by the frontend to show OAuth-ready vs needs-setup badges.
+// ---------------------------------------------------------------------------
+router.get("/oauth/status", (_req, res): void => {
+  const statuses = Object.entries(PROVIDERS).map(([key, meta]) => ({
+    provider: key,
+    label: meta.label,
+    connectMode: meta.connectMode,
+    // oauth providers are "ready" only when both credentials are present in env;
+    // api-key and manual-only are always ready by design (not missing config)
+    ready: meta.connectMode === "oauth"
+      ? !!(meta.clientId() && meta.clientSecret())
+      : true,
+  }));
+  res.json(statuses);
+});
+
+// ---------------------------------------------------------------------------
 // GET /oauth/connect/:provider — initiate OAuth flow
 // Returns one of:
 //   { mode: "real",     authUrl }           — redirect to provider
