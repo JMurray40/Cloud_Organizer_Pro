@@ -143,6 +143,10 @@ router.post("/files/bulk-rename", async (req, res): Promise<void> => {
     res.status(400).json({ error: "fileIds must be a non-empty array" });
     return;
   }
+  if (!fileIds.every((id) => Number.isInteger(id) && id > 0)) {
+    res.status(400).json({ error: "fileIds must be an array of positive integers" });
+    return;
+  }
   if (fileIds.length > 500) {
     res.status(400).json({ error: "Bulk rename limited to 500 files per request" });
     return;
