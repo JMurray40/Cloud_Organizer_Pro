@@ -179,9 +179,17 @@ router.post("/cloud-accounts/:id/sync", async (req, res): Promise<void> => {
   try {
     remoteFiles = await listProviderFiles(account.provider, accessToken);
   } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    if (detail.includes("HTTP 401") || detail.includes("HTTP 403")) {
+      res.status(401).json({
+        error: "Access token expired or revoked",
+        detail: "Remove this account and reconnect to get a fresh token.",
+      });
+      return;
+    }
     res.status(502).json({
       error: "Failed to fetch files from provider",
-      detail: err instanceof Error ? err.message : String(err),
+      detail,
     });
     return;
   }
