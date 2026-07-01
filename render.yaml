@@ -67,6 +67,27 @@ services:
         sync: false
       - key: YANDEX_CLIENT_SECRET
         sync: false
+      # Secret shared with the cron job to authenticate background sync calls.
+      # Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+      - key: CRON_SECRET
+        sync: false
+
+  # ── Background Sync (Cron Job) ──────────────────────────────────────────────
+  - type: cron
+    name: fileorbit-sync-cron
+    runtime: node
+    plan: free
+    # Sync all connected accounts every 6 hours: midnight, 06:00, 12:00, 18:00 UTC
+    schedule: "0 */6 * * *"
+    buildCommand: ""
+    startCommand: node scripts/cron-sync.mjs
+    envVars:
+      # Point to your API service: https://fileorbit-api.onrender.com
+      - key: API_BASE_URL
+        sync: false
+      # Must match CRON_SECRET on the fileorbit-api service
+      - key: CRON_SECRET
+        sync: false
 
   # ── Frontend (Static Site) ──────────────────────────────────────────────────
   - type: static

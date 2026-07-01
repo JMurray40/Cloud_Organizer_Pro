@@ -10,11 +10,14 @@ Go to **Render dashboard → `fileorbit-api` → Environment** and add/verify ea
 - [ ] `API_BASE_URL` = `https://fileorbit-api.onrender.com` (your actual API hostname)
 - [ ] `FRONTEND_URL` = `https://fileorbit-frontend.onrender.com` (your actual frontend hostname)
 
-### Security (token encryption)
+### Security (token encryption + background sync auth)
 - [ ] `ENCRYPTION_KEY` = 64-character hex string — generate with:
   ```
   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
   ```
+- [ ] `CRON_SECRET` = 64-character hex string (run the same command again for a different value)
+  - Set this on **both** the `fileorbit-api` service and the `fileorbit-sync-cron` service in Render
+  - The cron job uses this to authenticate its calls to `/api/internal/sync-all`
 
 ### Google Drive
 - [ ] `GOOGLE_CLIENT_ID` = Client ID from Google Cloud Console
