@@ -8,8 +8,9 @@ import {
   DeleteCloudAccountParams,
 } from "@workspace/api-zod";
 import { getUserId } from "../middlewares/requireAuth";
-import { safeDecrypt } from "../lib/encrypt";
+import { safeDecrypt, encrypt } from "../lib/encrypt";
 import { listProviderFiles, supportsSync } from "../lib/cloud-sync";
+import { refreshAccessToken } from "../lib/token-refresh";
 import { applyNamingConvention } from "../lib/naming";
 import { detectCategory, detectSubCategory } from "./files";
 
@@ -179,25 +180,75 @@ router.post("/cloud-accounts/:id/sync", async (req, res): Promise<void> => {
     return;
   }
 
-  const accessToken = safeDecrypt(tokenRow.accessToken);
+  // Persist a refreshed token back to the DB and return the new plaintext access token.
+  const applyRefresh = async (plainRefreshToken: string): Promise<string> => {
+    const result = await refreshAccessToken(account.provider, plainRefreshToken);
+    await db
+      .update(oauthTokensTable)
+      .set({
+        accessToken: encrypt(result.accessToken),
+        // Box rotates refresh tokens — save the new one. Others may or may not.
+        ...(result.refreshToken ? { refreshToken: encrypt(result.refreshToken) } : {}),
+        ...(result.expiresAt !== null ? { expiresAt: result.expiresAt } : {}),
+      })
+      .where(eq(oauthTokensTable.id, tokenRow.id));
+    return result.accessToken;
+  };
+
+  let accessToken = safeDecrypt(tokenRow.accessToken);
+
+  // Proactive refresh: if the token is already expired or within 5 minutes of expiry,
+  // refresh now so the sync attempt doesn't fail partway through.
+  if (tokenRow.refreshToken && tokenRow.expiresAt) {
+    const fiveMinutes = 5 * 60 * 1000;
+    if (tokenRow.expiresAt.getTime() - Date.now() < fiveMinutes) {
+      try {
+        accessToken = await applyRefresh(safeDecrypt(tokenRow.refreshToken));
+      } catch {
+        // If proactive refresh fails, proceed with the existing token and let the
+        // sync attempt surface a clearer error (or succeed if the token still works).
+      }
+    }
+  }
 
   let remoteFiles: Awaited<ReturnType<typeof listProviderFiles>>;
   try {
     remoteFiles = await listProviderFiles(account.provider, accessToken);
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    if (detail.includes("HTTP 401") || detail.includes("HTTP 403")) {
+    const isAuthError = detail.includes("HTTP 401") || detail.includes("HTTP 403");
+
+    if (isAuthError && tokenRow.refreshToken) {
+      // Reactive refresh: token expired mid-flight or proactive refresh wasn't triggered.
+      let freshToken: string;
+      try {
+        freshToken = await applyRefresh(safeDecrypt(tokenRow.refreshToken));
+      } catch (refreshErr) {
+        const msg = refreshErr instanceof Error ? refreshErr.message : String(refreshErr);
+        res.status(401).json({
+          error: "Access token expired and automatic refresh failed",
+          detail: `Please remove and reconnect this account. (${msg})`,
+        });
+        return;
+      }
+      // Retry once with the fresh token.
+      try {
+        remoteFiles = await listProviderFiles(account.provider, freshToken);
+      } catch (retryErr) {
+        const retryDetail = retryErr instanceof Error ? retryErr.message : String(retryErr);
+        res.status(502).json({ error: "Failed to fetch files from provider", detail: retryDetail });
+        return;
+      }
+    } else if (isAuthError) {
       res.status(401).json({
         error: "Access token expired or revoked",
         detail: "Remove this account and reconnect to get a fresh token.",
       });
       return;
+    } else {
+      res.status(502).json({ error: "Failed to fetch files from provider", detail });
+      return;
     }
-    res.status(502).json({
-      error: "Failed to fetch files from provider",
-      detail,
-    });
-    return;
   }
 
   // Fetch names already tracked for this account to skip duplicates
