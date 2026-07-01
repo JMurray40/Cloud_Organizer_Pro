@@ -16,12 +16,11 @@ const STATUS_COLORS: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
   organized: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
   renamed: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-  duplicate: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
   ignored: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
 };
 
 const CATEGORIES = ["", "Work", "Finance", "Personal", "Projects", "Media", "Archives"];
-const STATUSES = ["", "pending", "organized", "renamed", "duplicate", "ignored"];
+const STATUSES = ["", "pending", "organized", "renamed", "ignored"];
 
 export default function FilesPage() {
   const [search, setSearch] = useState("");
@@ -51,7 +50,9 @@ export default function FilesPage() {
   const params = {
     ...(search ? { search } : {}),
     ...(category && category !== "_all" ? { category } : {}),
-    ...(status && status !== "_all" ? { status } : {}),
+    // "duplicate" is a frontend-only sentinel — translate to the real isDuplicate filter
+    ...(status && status !== "_all" && status !== "duplicate" ? { status } : {}),
+    ...(status === "duplicate" ? { isDuplicate: true } : {}),
     ...(accountFilter === "_unassigned"
       ? { cloudAccountId: null as unknown as number }
       : accountFilter && accountFilter !== "_all"

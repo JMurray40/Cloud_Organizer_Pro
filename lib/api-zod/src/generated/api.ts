@@ -23,6 +23,7 @@ export const ListFilesQueryParams = zod.object({
   status: zod.coerce.string().optional(),
   cloudAccountId: zod.coerce.number().nullish(),
   search: zod.coerce.string().optional(),
+  isDuplicate: zod.coerce.boolean().optional(),
 });
 
 export const ListFilesResponseItem = zod.object({

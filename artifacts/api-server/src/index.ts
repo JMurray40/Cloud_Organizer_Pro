@@ -1,5 +1,14 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { encrypt } from "./lib/encrypt";
+
+// Fail fast if ENCRYPTION_KEY is missing or malformed — don't wait for the first OAuth connection.
+try {
+  encrypt("startup-check");
+} catch (err) {
+  logger.error({ err }, "ENCRYPTION_KEY validation failed — server will not start");
+  process.exit(1);
+}
 
 const rawPort = process.env["PORT"];
 

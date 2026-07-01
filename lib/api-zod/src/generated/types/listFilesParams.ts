@@ -14,4 +14,5 @@ export type ListFilesParams = {
    */
   cloudAccountId?: number | null;
   search?: string;
+  isDuplicate?: boolean;
 };

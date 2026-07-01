@@ -23,11 +23,12 @@ router.get("/files", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const { category, status, cloudAccountId, search } = parsed.data;
+  const { category, status, cloudAccountId, search, isDuplicate } = parsed.data;
 
   const conditions = [eq(filesTable.userId, userId)];
   if (category) conditions.push(eq(filesTable.category, category));
   if (status) conditions.push(eq(filesTable.status, status));
+  if (isDuplicate) conditions.push(eq(filesTable.isDuplicate, true));
   if (cloudAccountId != null) conditions.push(eq(filesTable.cloudAccountId, cloudAccountId));
   if (search) {
     conditions.push(

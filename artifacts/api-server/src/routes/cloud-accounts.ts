@@ -132,6 +132,12 @@ router.delete("/cloud-accounts/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  // Null out cloudAccountId on any files that referenced this account
+  await db
+    .update(filesTable)
+    .set({ cloudAccountId: null })
+    .where(and(eq(filesTable.userId, userId), eq(filesTable.cloudAccountId, account.id)));
+
   res.sendStatus(204);
 });
 
