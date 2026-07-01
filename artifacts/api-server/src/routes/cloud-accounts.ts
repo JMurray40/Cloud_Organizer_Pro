@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and, count as drizzleCount } from "drizzle-orm";
-import { db, cloudAccountsTable, oauthTokensTable, filesTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
+import { db, cloudAccountsTable, filesTable } from "@workspace/db";
 import {
   CreateCloudAccountBody,
   UpdateCloudAccountBody,
@@ -8,10 +8,8 @@ import {
   DeleteCloudAccountParams,
 } from "@workspace/api-zod";
 import { getUserId } from "../middlewares/requireAuth";
-import { safeDecrypt } from "../lib/encrypt";
-import { listProviderFiles, supportsSync } from "../lib/cloud-sync";
-import { applyNamingConvention } from "../lib/naming";
-import { detectCategory, detectSubCategory } from "./files";
+import { supportsSync } from "../lib/cloud-sync";
+import { syncAccount, SyncError } from "../lib/sync-account";
 
 const router: IRouter = Router();
 
@@ -132,6 +130,12 @@ router.delete("/cloud-accounts/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  // Null out cloudAccountId on any files that referenced this account
+  await db
+    .update(filesTable)
+    .set({ cloudAccountId: null })
+    .where(and(eq(filesTable.userId, userId), eq(filesTable.cloudAccountId, account.id)));
+
   res.sendStatus(204);
 });
 
@@ -164,88 +168,20 @@ router.post("/cloud-accounts/:id/sync", async (req, res): Promise<void> => {
     return;
   }
 
-  const [tokenRow] = await db
-    .select()
-    .from(oauthTokensTable)
-    .where(and(eq(oauthTokensTable.cloudAccountId, id), eq(oauthTokensTable.userId, userId)));
-  if (!tokenRow) {
-    res.status(400).json({ error: "No credentials found for this account. Please reconnect." });
-    return;
-  }
-
-  const accessToken = safeDecrypt(tokenRow.accessToken);
-
-  let remoteFiles: Awaited<ReturnType<typeof listProviderFiles>>;
   try {
-    remoteFiles = await listProviderFiles(account.provider, accessToken);
+    const result = await syncAccount(id, userId);
+    res.json(result);
   } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
-    if (detail.includes("HTTP 401") || detail.includes("HTTP 403")) {
-      res.status(401).json({
-        error: "Access token expired or revoked",
-        detail: "Remove this account and reconnect to get a fresh token.",
-      });
-      return;
-    }
-    res.status(502).json({
-      error: "Failed to fetch files from provider",
-      detail,
-    });
-    return;
-  }
-
-  // Fetch names already tracked for this account to skip duplicates
-  const existing = await db
-    .select({ originalName: filesTable.originalName })
-    .from(filesTable)
-    .where(and(eq(filesTable.userId, userId), eq(filesTable.cloudAccountId, id)));
-  const existingNames = new Set(existing.map((f) => f.originalName));
-
-  const toInsert = remoteFiles.filter((f) => !existingNames.has(f.name));
-
-  if (toInsert.length > 0) {
-    const rows = toInsert.map((f) => {
-      const cat = detectCategory(f.name);
-      const sub = detectSubCategory(f.name, cat);
-      const suggestion = applyNamingConvention(f.name, cat, sub);
-      return {
-        userId,
-        originalName: f.name,
-        suggestedName: suggestion.suggestedName,
-        currentName: f.name,
-        category: cat,
-        subCategory: sub ?? null,
-        suggestedPath: suggestion.suggestedPath,
-        cloudAccountId: id,
-        fileSize: f.sizeBytes ?? null,
-        fileExtension: suggestion.extension,
-        notes: null as string | null,
-        isDuplicate: false,
-        status: "pending",
-      };
-    });
-
-    // Insert in batches of 200 to avoid oversized queries
-    for (let i = 0; i < rows.length; i += 200) {
-      await db.insert(filesTable).values(rows.slice(i, i + 200));
+    if (err instanceof SyncError) {
+      const status = err.code === "not_found" ? 404
+        : err.code === "no_token" || err.code === "not_oauth" || err.code === "not_supported" ? 400
+        : err.code === "auth_failed" ? 401
+        : 502;
+      res.status(status).json({ error: err.message });
+    } else {
+      res.status(500).json({ error: "Unexpected sync error" });
     }
   }
-
-  // Sync the stored fileCount to the actual DB count
-  const [{ count: actualCount }] = await db
-    .select({ count: drizzleCount() })
-    .from(filesTable)
-    .where(and(eq(filesTable.userId, userId), eq(filesTable.cloudAccountId, id)));
-  await db
-    .update(cloudAccountsTable)
-    .set({ fileCount: Number(actualCount) })
-    .where(eq(cloudAccountsTable.id, id));
-
-  res.json({
-    imported: toInsert.length,
-    skipped: remoteFiles.length - toInsert.length,
-    total: remoteFiles.length,
-  });
 });
 
 export default router;

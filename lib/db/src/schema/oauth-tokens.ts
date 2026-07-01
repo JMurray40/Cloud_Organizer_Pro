@@ -13,7 +13,7 @@ export const oauthTokensTable = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     scope: text("scope"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
   },
   (t) => [
     index("oauth_tokens_user_provider_idx").on(t.userId, t.provider),

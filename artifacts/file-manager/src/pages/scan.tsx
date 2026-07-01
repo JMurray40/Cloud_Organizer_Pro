@@ -15,6 +15,7 @@ type ScanResultItem = {
   subCategory?: string | null;
   isDuplicateRisk: boolean;
   explanation: string;
+  confidence?: number;
 };
 
 export default function ScanPage() {
@@ -252,7 +253,7 @@ export default function ScanPage() {
           {/* Mobile card list */}
           <div className="sm:hidden divide-y divide-border">
             {results.map((result, i) => {
-              const conf = (result as any).confidence as number | undefined;
+              const conf = result.confidence;
               const confColor = conf == null ? "" : conf >= 80 ? "text-green-600" : conf >= 60 ? "text-yellow-600" : "text-red-500";
               return (
                 <div
@@ -305,7 +306,7 @@ export default function ScanPage() {
               <span>Action</span>
             </div>
             {results.map((result, i) => {
-              const conf = (result as any).confidence as number | undefined;
+              const conf = result.confidence;
               const confColor = conf == null ? "" : conf >= 80 ? "text-green-600" : conf >= 60 ? "text-yellow-600" : "text-red-500";
               return (
                 <div

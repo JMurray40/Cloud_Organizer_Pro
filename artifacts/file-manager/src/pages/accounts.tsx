@@ -80,6 +80,42 @@ type OAuthConnectResponse =
   | { mode: "api-key" }
   | { mode: "simulate"; state: string; instructions: string };
 
+type ProviderStatus = {
+  provider: string;
+  connectMode: "oauth" | "api-key" | "manual-only";
+  ready: boolean;
+};
+
+function ProviderBadge({ status }: { status: ProviderStatus | undefined }) {
+  if (!status) return null;
+  const { connectMode, ready } = status;
+
+  if (connectMode === "manual-only") {
+    return (
+      <span className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
+        Manual
+      </span>
+    );
+  }
+  if (connectMode === "api-key") {
+    return (
+      <span className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+        API Key
+      </span>
+    );
+  }
+  // oauth
+  return ready ? (
+    <span className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+      OAuth ✓
+    </span>
+  ) : (
+    <span className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+      Needs setup
+    </span>
+  );
+}
+
 const PROVIDER_LABELS: Record<string, string> = {
   google_drive: "Google Drive",
   dropbox: "Dropbox",
@@ -107,6 +143,7 @@ export default function AccountsPage() {
   const [oauthData, setOauthData] = useState<{ state: string; instructions: string } | null>(null);
   const [loadingOauth, setLoadingOauth] = useState(false);
   const [syncingAccountId, setSyncingAccountId] = useState<number | null>(null);
+  const [providerStatuses, setProviderStatuses] = useState<Map<string, ProviderStatus>>(new Map());
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -171,6 +208,9 @@ export default function AccountsPage() {
     simulateForm.reset();
     apiKeyForm.reset();
     setDialogOpen(true);
+    customFetch<ProviderStatus[]>(`${BASE}/api/oauth/status`)
+      .then((data) => setProviderStatuses(new Map(data.map((s) => [s.provider, s]))))
+      .catch(() => {}); // degrade gracefully — badges just won't show
   };
 
   const handlePickProvider = async (provider: typeof PROVIDERS[0]) => {
@@ -475,7 +515,7 @@ export default function AccountsPage() {
           <DialogHeader>
             <DialogTitle>
               {step === "pick-provider" && "Connect a Cloud Account"}
-              {step === "oauth-info" && `Connect ${selectedProvider?.label}`}
+              {step === "oauth-info" && `Track ${selectedProvider?.label} Manually`}
               {step === "api-key-form" && `Connect ${selectedProvider?.label}`}
               {step === "manual-form" && "Add Local Storage"}
             </DialogTitle>
@@ -483,28 +523,40 @@ export default function AccountsPage() {
 
           {step === "pick-provider" && (
             <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">Choose your storage provider to get started</p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">Choose your storage provider</p>
+                {providerStatuses.size > 0 && (
+                  <div className="flex items-center gap-2 text-[9px] text-muted-foreground">
+                    <span className="flex items-center gap-1"><span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />OAuth ready</span>
+                    <span className="flex items-center gap-1"><span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400" />Needs setup</span>
+                    <span className="flex items-center gap-1"><span className="inline-block w-1.5 h-1.5 rounded-full bg-muted-foreground/40" />Manual</span>
+                  </div>
+                )}
+              </div>
               <div className="grid grid-cols-2 gap-2 max-h-[60vh] overflow-y-auto pr-0.5">
                 {PROVIDERS.map((p) => {
                   const Icon = p.icon;
+                  const status = providerStatuses.get(p.value);
+                  const needsSetup = status?.connectMode === "oauth" && !status.ready;
                   return (
                     <button
                       key={p.value}
                       onClick={() => handlePickProvider(p)}
                       disabled={loadingOauth}
                       className={cn(
-                        "flex items-center gap-3 p-3.5 rounded-xl border border-border hover:border-primary/50 hover:bg-muted/60 transition-all text-left group",
+                        "flex items-center gap-2.5 p-3 rounded-xl border transition-all text-left group",
+                        needsSetup
+                          ? "border-amber-200 dark:border-amber-900/50 hover:border-amber-400 hover:bg-amber-50/50 dark:hover:bg-amber-950/20"
+                          : "border-border hover:border-primary/50 hover:bg-muted/60",
                         loadingOauth && "opacity-50 cursor-not-allowed"
                       )}
                     >
-                      <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center shrink-0", p.bg)}>
-                        <Icon className={cn("w-5 h-5", p.color)} />
+                      <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", p.bg)}>
+                        <Icon className={cn("w-4 h-4", p.color)} />
                       </div>
-                      <div>
-                        <div className="text-sm font-medium text-foreground">{p.label}</div>
-                        {p.freeQuotaGb && (
-                          <div className="text-[10px] text-muted-foreground">{p.freeQuotaGb} GB free tier</div>
-                        )}
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-foreground leading-tight truncate">{p.label}</div>
+                        <ProviderBadge status={status} />
                       </div>
                     </button>
                   );
@@ -515,7 +567,11 @@ export default function AccountsPage() {
 
           {step === "oauth-info" && selectedProvider && oauthData && (
             <div className="space-y-4">
-              <div className="flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg text-sm text-blue-700 dark:text-blue-300">
+              <div className="flex items-center gap-2 px-0.5">
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground uppercase tracking-wide">Manual tracking</span>
+                <span className="text-xs text-muted-foreground">No live API connection</span>
+              </div>
+              <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg text-sm text-amber-700 dark:text-amber-300">
                 <Info className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{oauthData.instructions}</span>
               </div>

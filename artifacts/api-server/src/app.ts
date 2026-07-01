@@ -14,6 +14,7 @@ import { requireAuth } from "./middlewares/requireAuth";
 import router from "./routes";
 import healthRouter from "./routes/health";
 import oauthCallbackRouter from "./routes/oauth-callback";
+import internalRouter from "./routes/internal";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -111,6 +112,9 @@ app.use("/api", healthRouter);
 
 // OAuth callback from providers — unauthenticated (browser redirect, no Clerk token)
 app.use("/api", oauthCallbackRouter);
+
+// Internal cron endpoints — authenticated by CRON_SECRET, not Clerk
+app.use("/api", internalRouter);
 
 // Everything else: rate-limit + requireAuth + business routes
 app.use("/api", apiLimiter, requireAuth, router);
