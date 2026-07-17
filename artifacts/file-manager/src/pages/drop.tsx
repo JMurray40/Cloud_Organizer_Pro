@@ -1,7 +1,13 @@
 import { useState, useCallback } from "react";
-import { useSuggestFileName, useCreateFile, useListCloudAccounts, getListFilesQueryKey } from "@workspace/api-client-react";
+import {
+  useSuggestFileName,
+  useCreateFile,
+  useListCloudAccounts,
+  useGetPlacementRecommendation,
+  getListFilesQueryKey,
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Upload, FolderOpen, CheckCircle2, X, HardDrive } from "lucide-react";
+import { Upload, FolderOpen, CheckCircle2, X, HardDrive, Lightbulb, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -21,6 +27,17 @@ type DroppedFile = {
   accepted?: boolean;
 };
 
+function MiniStorageBar({ used, total, highlight }: { used: number | null; total: number | null; highlight?: boolean }) {
+  if (used == null || total == null || total === 0) return null;
+  const pct = Math.min(100, (used / total) * 100);
+  const color = highlight ? "bg-primary" : pct > 90 ? "bg-red-400" : pct > 75 ? "bg-yellow-400" : "bg-muted-foreground/40";
+  return (
+    <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
+      <div className={cn("h-full rounded-full transition-all", color)} style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
+
 export default function DropPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState<DroppedFile[]>([]);
@@ -30,6 +47,16 @@ export default function DropPage() {
   const suggestName = useSuggestFileName();
   const createFile = useCreateFile();
   const { data: accounts } = useListCloudAccounts();
+
+  const totalSizeGb = files.reduce((sum, f) => sum + f.size, 0) / 1e9;
+  const activeAccounts = accounts?.filter((a) => a.isActive) ?? [];
+
+  const { data: placement } = useGetPlacementRecommendation(
+    totalSizeGb > 0 ? { fileSizeGb: parseFloat(totalSizeGb.toFixed(6)) } : {},
+    { query: { enabled: activeAccounts.length > 0 } },
+  );
+
+  const accountsWithQuota = placement?.accounts.filter((a) => a.freeGb != null) ?? [];
 
   const processFiles = useCallback(async (fileList: FileList) => {
     const newFiles: DroppedFile[] = Array.from(fileList).map((f) => ({
@@ -122,10 +149,9 @@ export default function DropPage() {
   const formatSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
   };
-
-  const activeAccounts = accounts?.filter((a) => a.isActive) ?? [];
 
   return (
     <div className="px-4 py-4 md:px-6 md:py-6 space-y-4 md:space-y-6">
@@ -161,6 +187,82 @@ export default function DropPage() {
           <p className="text-xs text-muted-foreground mt-1.5">
             Assigning an account makes it easy to filter and manage files per storage service.
           </p>
+        </div>
+      )}
+
+      {/* Placement Advisor */}
+      {accountsWithQuota.length > 0 && placement && (
+        <div className="bg-card border border-card-border rounded-xl p-4 space-y-3" data-testid="placement-advisor">
+          <div className="flex items-center gap-2">
+            <Lightbulb className="w-4 h-4 text-primary shrink-0" />
+            <span className="text-sm font-medium text-foreground">Placement Advisor</span>
+            {files.length > 0 && (
+              <span className="text-xs text-muted-foreground ml-auto">
+                {formatSize(files.reduce((s, f) => s + f.size, 0))} total
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">{placement.reason}</p>
+          <div className="space-y-2">
+            {accountsWithQuota.map((account) => {
+              const isRecommended = account.id === placement.recommendedAccountId;
+              const pct = account.percentUsed ?? 0;
+              const isSelected = String(account.id) === selectedAccountId;
+              return (
+                <div
+                  key={account.id}
+                  data-testid={`placement-account-${account.id}`}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors",
+                    isRecommended
+                      ? "bg-primary/5 ring-1 ring-primary/25"
+                      : "hover:bg-muted/30"
+                  )}
+                >
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      {isRecommended && (
+                        <Star className="w-3 h-3 text-primary shrink-0 fill-primary" />
+                      )}
+                      <span className={cn("text-xs font-medium truncate", isRecommended ? "text-primary" : "text-foreground")}>
+                        {account.name}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
+                        {account.freeGb != null ? `${account.freeGb.toFixed(1)} GB free` : ""}
+                      </span>
+                    </div>
+                    <MiniStorageBar
+                      used={account.quotaUsedGb ?? null}
+                      total={account.quotaTotalGb ?? null}
+                      highlight={isRecommended}
+                    />
+                    <div className="flex justify-between text-[10px] text-muted-foreground">
+                      <span>{pct.toFixed(0)}% used</span>
+                      {account.quotaTotalGb != null && (
+                        <span>{account.quotaTotalGb} GB total</span>
+                      )}
+                    </div>
+                  </div>
+                  {isRecommended && !isSelected && (
+                    <Button
+                      data-testid={`button-use-account-${account.id}`}
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs shrink-0"
+                      onClick={() => setSelectedAccountId(String(account.id))}
+                    >
+                      Use this
+                    </Button>
+                  )}
+                  {isSelected && (
+                    <span className="text-[10px] text-primary shrink-0 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Selected
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
